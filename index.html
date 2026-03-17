@@ -16,6 +16,7 @@
 </head>
 <body class="text-white">
   <div class="max-w-6xl mx-auto p-8">
+    <!-- HEADER -->
     <div class="flex justify-between items-center mb-10">
       <div class="flex items-center gap-4">
         <div class="w-16 h-16 bg-gradient-to-br from-red-600 to-yellow-400 rounded-2xl flex items-center justify-center text-5xl">💀</div>
@@ -36,7 +37,6 @@
               <div onclick="startPlaying()" class="text-center">
                 <div class="text-6xl mb-6">🎵</div>
                 <div class="text-4xl font-black tracking-widest text-yellow-400">CLICK TO JOIN<br>THE PARTY</div>
-                <div class="text-zinc-400 text-sm mt-4">Everyone hears the same song</div>
               </div>
             </div>
           </div>
@@ -54,14 +54,15 @@
           </div>
         </div>
 
+        <!-- ONLY SKIP BUTTON NOW -->
         <div class="flex gap-4 mt-6">
           <button onclick="skipCurrent()" class="flex-1 bg-red-600 py-6 rounded-3xl font-bold text-xl">⏭️ SKIP THIS BANGER</button>
-          <button onclick="clearQueue()" class="flex-1 bg-zinc-900 py-6 rounded-3xl font-bold text-xl border border-zinc-700">🗑️ NUKE QUEUE</button>
         </div>
       </div>
 
-      <!-- REQUEST + QUEUE -->
+      <!-- RIGHT COLUMN -->
       <div class="lg:col-span-4 space-y-8">
+        <!-- REQUEST -->
         <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-8">
           <h3 class="font-bold text-2xl mb-6">📥 REQUEST A SONG</h3>
           <input id="url-input" type="text" placeholder="https://youtu.be/..." class="w-full bg-black border border-zinc-700 rounded-2xl px-6 py-6 text-lg">
@@ -69,16 +70,23 @@
           <button onclick="addSong()" class="mt-6 w-full bg-gradient-to-r from-yellow-400 to-red-500 py-6 rounded-3xl text-2xl font-black">THROW IT IN THE QUEUE 🔥</button>
         </div>
 
-        <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-8 h-[420px] flex flex-col">
+        <!-- UP NEXT -->
+        <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-8 h-[300px] flex flex-col">
           <h3 class="font-bold text-2xl mb-6">UP NEXT <span id="queue-count">(0)</span></h3>
           <div id="queue-list" class="flex-1 overflow-auto space-y-3"></div>
           <div id="empty-state" class="flex-1 flex items-center justify-center text-zinc-500 hidden">Queue empty</div>
+        </div>
+
+        <!-- PREVIOUSLY PLAYED -->
+        <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-8 h-[300px] flex flex-col">
+          <h3 class="font-bold text-2xl mb-6">PREVIOUSLY PLAYED <span id="history-count">(0)</span></h3>
+          <div id="history-list" class="flex-1 overflow-auto space-y-3"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- SHARE TOAST -->
+  <!-- TOASTS -->
   <div id="share-toast" class="hidden fixed bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900 border border-yellow-400 rounded-3xl px-8 py-5 shadow-2xl flex items-center gap-6 z-[100]">
     <div>
       <div class="text-yellow-300 text-sm">YOU JUST QUEUED</div>
@@ -88,7 +96,6 @@
     <button onclick="hideToast()" class="text-3xl text-zinc-500">×</button>
   </div>
 
-  <!-- NEW COPYRIGHT ERROR TOAST -->
   <div id="error-toast" class="hidden fixed bottom-8 left-1/2 -translate-x-1/2 bg-red-600/90 border border-red-400 rounded-3xl px-8 py-5 shadow-2xl flex items-center gap-4 z-[100]">
     <div class="text-3xl">⛔</div>
     <div id="error-text" class="font-bold">Song blocked by YouTube — auto-skipping...</div>
@@ -103,25 +110,16 @@
       player = new YT.Player('player', {
         width: '100%', height: '100%',
         playerVars: { autoplay: 1, controls: 1, modestbranding: 1 },
-        events: {
-          onStateChange: onPlayerStateChange,
-          onError: onPlayerError   // ← THIS IS THE NEW DETECTION
-        }
+        events: { onStateChange: onPlayerStateChange, onError: onPlayerError }
       });
     };
 
-    function onPlayerStateChange(e) {
-      if (e.data === YT.PlayerState.ENDED) socket.emit('nextSong');
-    }
-
-    // 🔥 AUTO-DETECT COPYRIGHT / EMBEDDING BLOCKED SONGS
+    function onPlayerStateChange(e) { if (e.data === YT.PlayerState.ENDED) socket.emit('nextSong'); }
     function onPlayerError(event) {
-      const blockedCodes = [100, 101, 150, 5]; // 101/150 = embedding disabled by copyright/label
-      if (blockedCodes.includes(event.data)) {
-        const title = document.getElementById('now-title').textContent || "this song";
-        document.getElementById('error-text').textContent = `⛔ "${title}" blocked by YouTube — auto-skipping...`;
+      const blocked = [100,101,150,5];
+      if (blocked.includes(event.data)) {
+        document.getElementById('error-text').textContent = `⛔ Song blocked — auto-skipping...`;
         document.getElementById('error-toast').classList.remove('hidden');
-        
         setTimeout(() => {
           document.getElementById('error-toast').classList.add('hidden');
           socket.emit('nextSong');
@@ -153,20 +151,16 @@
       document.getElementById('now-thumbnail').innerHTML = `<img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-full h-full object-cover">`;
     }
 
-    function renderQueue(queue) {
+    function renderQueue(q) {
       const list = document.getElementById('queue-list');
       const count = document.getElementById('queue-count');
       const empty = document.getElementById('empty-state');
       list.innerHTML = '';
-      count.textContent = `(${queue.length})`;
-
-      if (queue.length === 0) {
-        empty.classList.remove('hidden');
-        return;
-      }
+      count.textContent = `(${q.length})`;
+      if (q.length === 0) { empty.classList.remove('hidden'); return; }
       empty.classList.add('hidden');
 
-      queue.forEach((song, i) => {
+      q.forEach((song, i) => {
         const div = document.createElement('div');
         div.className = "flex gap-4 bg-zinc-950 p-5 rounded-2xl";
         div.innerHTML = `
@@ -181,9 +175,31 @@
       });
     }
 
+    function renderHistory(h) {
+      const list = document.getElementById('history-list');
+      const count = document.getElementById('history-count');
+      list.innerHTML = '';
+      count.textContent = `(${h.length})`;
+
+      h.forEach((song, i) => {
+        const div = document.createElement('div');
+        div.className = "flex gap-4 bg-zinc-950 p-5 rounded-2xl";
+        div.innerHTML = `
+          <img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-16 h-16 rounded-xl">
+          <div class="flex-1">
+            <div class="font-medium">${song.title}</div>
+            <div class="text-xs text-zinc-500">by ${song.requester}</div>
+          </div>
+          <button onclick="reQueue(${i});event.stopImmediatePropagation()" class="text-yellow-400 font-black text-sm px-4">↺ RE-QUEUE</button>
+        `;
+        list.appendChild(div);
+      });
+    }
+
     function updateUI(state) {
       renderNowPlaying(state.nowPlaying);
       renderQueue(state.queue || []);
+      renderHistory(state.history || []);
       if (state.nowPlaying && state.nowPlaying.id !== currentId) playSong(state.nowPlaying.id);
     }
 
@@ -204,29 +220,24 @@
       });
     }
 
+    function reQueue(i) { socket.emit('reQueue', i); }
+
     function shareNowPlaying() {
       const title = document.getElementById('now-title').textContent;
       if (!title) return;
       const text = `I'm listening to "${title}" in The Skeleton Jukebox right now! 💀🎵\n\nJoin: ${JUKEBOX_URL}`;
-      navigator.clipboard.writeText(text).then(() => alert("✅ Copied! Paste on X or Discord"));
+      navigator.clipboard.writeText(text).then(() => alert("✅ Copied!"));
     }
 
     function shareQueuedSong() {
       const title = document.getElementById('toast-song-title').textContent;
       const text = `I just queued "${title}" in The Skeleton Jukebox! 💀🔥\n\nJoin: ${JUKEBOX_URL}`;
-      navigator.clipboard.writeText(text).then(() => {
-        alert("✅ Copied! Go brag on X");
-        hideToast();
-      });
+      navigator.clipboard.writeText(text).then(() => { alert("✅ Copied!"); hideToast(); });
     }
 
-    function hideToast() {
-      document.getElementById('share-toast').classList.add('hidden');
-    }
-
+    function hideToast() { document.getElementById('share-toast').classList.add('hidden'); }
     function skipCurrent() { if (confirm("Skip?")) socket.emit('nextSong'); }
     function removeSong(i) { if (confirm("Remove?")) socket.emit('removeSong', i); }
-    function clearQueue() { if (confirm("Nuke queue?")) socket.emit('clearQueue'); }
 
     window.onload = () => {
       socket = io();
@@ -237,11 +248,11 @@
     window.addSong = addSong;
     window.skipCurrent = skipCurrent;
     window.removeSong = removeSong;
-    window.clearQueue = clearQueue;
     window.shareNowPlaying = shareNowPlaying;
     window.shareQueuedSong = shareQueuedSong;
     window.hideToast = hideToast;
     window.startPlaying = startPlaying;
+    window.reQueue = reQueue;
   </script>
 </body>
 </html>
