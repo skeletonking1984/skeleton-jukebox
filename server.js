@@ -21,8 +21,7 @@ const fallbackSongs = [
   { id: "XaiYxczjZ0U", title: "Godsmack - Voodoo (Official Music Video)" },
   { id: "H-iPavAXQUk", title: "Kavinsky - Nightcall (Official Video)" },
   { id: "xGytDsqkQY8", title: "Semisonic - Closing Time (Official Music Video)" },
-  { id: "JnRw8bXVbPI", title: "The Verve - Bitter Sweet Symphony (Remastered 2016)" },
-  { id: "49FB9hhoO6c", title: "Pixies - Where is My Mind?" }
+  { id: "JnRw8bXVbPI", title: "The Verve - Bitter Sweet Symphony (Remastered 2016)" }
 ];
 
 function getRandomSong() {
@@ -33,6 +32,7 @@ function getRandomSong() {
 let nowPlaying = getRandomSong();
 let queue = [];
 let history = [];
+let lastAdvancedSongId = null;  // ← NEW: prevent double-advance
 
 if (fs.existsSync(STATE_FILE)) {
   try {
@@ -75,13 +75,19 @@ io.on('connection', (socket) => {
   });
 
   socket.on('nextSong', () => {
-    if (nowPlaying) {
-      history.unshift(nowPlaying);
-      if (history.length > 12) history.pop();
+    // Guard: only advance if this is still the current song
+    if (nowPlaying && (!lastAdvancedSongId || lastAdvancedSongId === nowPlaying.id)) {
+      if (nowPlaying) {
+        history.unshift(nowPlaying);
+        if (history.length > 12) history.pop();
+      }
+      lastAdvancedSongId = nowPlaying ? nowPlaying.id : null;  // mark as advanced
+
+      nowPlaying = queue.length > 0 ? queue.shift() : getRandomSong();
+      saveState();
+      io.emit('state', { nowPlaying, queue, history });
     }
-    nowPlaying = queue.length > 0 ? queue.shift() : getRandomSong();
-    saveState();
-    io.emit('state', { nowPlaying, queue, history });
+    // else: ignore duplicate / stale nextSong call
   });
 
   socket.on('removeSong', (index) => {
@@ -92,13 +98,6 @@ io.on('connection', (socket) => {
 
   socket.on('reQueue', (index) => {
     if (index >= 0 && index < history.length) queue.push(history[index]);
-    saveState();
-    io.emit('state', { nowPlaying, queue, history });
-  });
-
-  socket.on('newSession', () => {
-    queue = [];
-    nowPlaying = getRandomSong();
     saveState();
     io.emit('state', { nowPlaying, queue, history });
   });
