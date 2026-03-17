@@ -7,11 +7,10 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: "*" } });
 
-// Super simple — serves index.html at root (no folder issues)
+// Simple paths that work on Render
 app.get('/', (req, res) => {
   res.sendFile('index.html', { root: process.cwd() });
 });
-
 app.use(express.static(process.cwd()));
 
 let nowPlaying = null;
