@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SKELETON JUKEBOX</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
@@ -31,8 +32,6 @@
         <div class="bg-zinc-950 border border-yellow-400/30 rounded-3xl overflow-hidden">
           <div id="player-container" class="player-container bg-black relative">
             <div id="player" class="w-full h-full"></div>
-            
-            <!-- AUTOPLAY OVERLAY -->
             <div id="autoplay-overlay" class="absolute inset-0 bg-black/90 flex items-center justify-center z-50 cursor-pointer">
               <div onclick="startPlaying()" class="text-center">
                 <div class="text-6xl mb-6">🎵</div>
@@ -42,7 +41,6 @@
             </div>
           </div>
 
-          <!-- Now Playing -->
           <div id="now-playing" class="px-8 py-6 hidden">
             <div class="flex gap-6 items-center">
               <div id="now-thumbnail" class="w-24 h-24 bg-zinc-900 rounded-2xl overflow-hidden ring-2 ring-yellow-400/50"></div>
@@ -173,7 +171,6 @@
       socket.emit('addSong', { url, requester });
       document.getElementById('url-input').value = '';
 
-      // Show share toast after queue update
       socket.once('state', (state) => {
         if (state.queue && state.queue.length > 0) {
           const last = state.queue[state.queue.length-1];
