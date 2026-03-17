@@ -8,11 +8,12 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: "*" } });
 
-app.use(express.static('public'));
+// Serve the public folder
+app.use(express.static(path.join(__dirname, 'public')));
 
-// ← THIS IS THE FIX (renders the jukebox page)
+// This line was missing — it makes the homepage work
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 let nowPlaying = null;
@@ -72,5 +73,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log(`💀 Skeleton Jukebox running on http://localhost:${PORT}`);
+  console.log(`💀 Skeleton Jukebox running on port ${PORT}`);
 });
