@@ -56,6 +56,7 @@
 
         <div class="flex gap-4 mt-6">
           <button onclick="skipCurrent()" class="flex-1 bg-red-600 py-6 rounded-3xl font-bold text-xl">⏭️ SKIP THIS BANGER</button>
+          <button onclick="clearQueue()" class="flex-1 bg-zinc-900 py-6 rounded-3xl font-bold text-xl border border-zinc-700">🗑️ NUKE QUEUE</button>
         </div>
       </div>
 
@@ -87,6 +88,12 @@
     <button onclick="hideToast()" class="text-3xl text-zinc-500">×</button>
   </div>
 
+  <!-- NEW COPYRIGHT ERROR TOAST -->
+  <div id="error-toast" class="hidden fixed bottom-8 left-1/2 -translate-x-1/2 bg-red-600/90 border border-red-400 rounded-3xl px-8 py-5 shadow-2xl flex items-center gap-4 z-[100]">
+    <div class="text-3xl">⛔</div>
+    <div id="error-text" class="font-bold">Song blocked by YouTube — auto-skipping...</div>
+  </div>
+
   <script>
     let socket, player, currentId = null;
     const JUKEBOX_URL = "https://skeleton-jukebox.onrender.com";
@@ -96,12 +103,30 @@
       player = new YT.Player('player', {
         width: '100%', height: '100%',
         playerVars: { autoplay: 1, controls: 1, modestbranding: 1 },
-        events: { onStateChange: onPlayerStateChange }
+        events: {
+          onStateChange: onPlayerStateChange,
+          onError: onPlayerError   // ← THIS IS THE NEW DETECTION
+        }
       });
     };
 
     function onPlayerStateChange(e) {
       if (e.data === YT.PlayerState.ENDED) socket.emit('nextSong');
+    }
+
+    // 🔥 AUTO-DETECT COPYRIGHT / EMBEDDING BLOCKED SONGS
+    function onPlayerError(event) {
+      const blockedCodes = [100, 101, 150, 5]; // 101/150 = embedding disabled by copyright/label
+      if (blockedCodes.includes(event.data)) {
+        const title = document.getElementById('now-title').textContent || "this song";
+        document.getElementById('error-text').textContent = `⛔ "${title}" blocked by YouTube — auto-skipping...`;
+        document.getElementById('error-toast').classList.remove('hidden');
+        
+        setTimeout(() => {
+          document.getElementById('error-toast').classList.add('hidden');
+          socket.emit('nextSong');
+        }, 1800);
+      }
     }
 
     function playSong(id) {
