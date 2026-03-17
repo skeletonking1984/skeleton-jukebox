@@ -91,6 +91,7 @@
 
   <script>
     let socket, player, currentId = null;
+    let playWatchdog = null;
     const JUKEBOX_URL = "https://skeleton-jukebox.onrender.com";
     let hasStarted = false;
 
@@ -103,6 +104,12 @@
     };
 
     function onPlayerStateChange(e) {
+      if (e.data === YT.PlayerState.PLAYING) {
+        if (playWatchdog) {
+          clearTimeout(playWatchdog);
+          playWatchdog = null;
+        }
+      }
       if (e.data === YT.PlayerState.ENDED) {
         console.log('Video ended – requesting next song');
         socket.emit('nextSong');
@@ -125,6 +132,13 @@
       currentId = id;
       if (player) {
         player.loadVideoById(id);
+
+        if (playWatchdog) clearTimeout(playWatchdog);
+        playWatchdog = setTimeout(() => {
+          console.log('Play watchdog triggered – forcing next');
+          socket.emit('nextSong');
+        }, 8000);
+
         setTimeout(() => {
           if (!hasStarted && player) player.playVideo();
         }, 800);
@@ -161,7 +175,6 @@
 
       empty.classList.add('hidden');
 
-      // Show only first 3
       const displayItems = q.slice(0, 3);
       displayItems.forEach((song) => {
         const div = document.createElement('div');
@@ -190,18 +203,21 @@
       list.innerHTML = '';
       count.textContent = `(${h.length})`;
 
-      // Show only first 3
       const displayItems = h.slice(0, 3);
       displayItems.forEach((song, i) => {
         const div = document.createElement('div');
-        div.className = "flex gap-4 bg-zinc-950 p-5 rounded-2xl";
+        div.className = "flex flex-col gap-2 bg-zinc-950 p-4 rounded-2xl";
         div.innerHTML = `
-          <img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-16 h-16 rounded-xl">
-          <div class="flex-1">
-            <div class="font-medium">${song.title}</div>
-            <div class="text-xs text-zinc-500">by ${song.requester}</div>
+          <div class="flex gap-4">
+            <img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-16 h-16 rounded-xl">
+            <div class="flex-1">
+              <div class="font-medium">${song.title}</div>
+              <div class="text-xs text-zinc-500">by ${song.requester}</div>
+            </div>
           </div>
-          <button onclick="reQueue(${i});event.stopImmediatePropagation()" class="text-yellow-400 font-black text-sm px-4">↺ RE-QUEUE</button>
+          <button onclick="reQueue(${i});event.stopImmediatePropagation()" class="text-yellow-400 font-black text-xs px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded-lg self-start">
+            ↺ RE-QUEUE
+          </button>
         `;
         list.appendChild(div);
       });
@@ -218,8 +234,14 @@
       renderNowPlaying(state.nowPlaying);
       renderQueue(state.queue || []);
       renderHistory(state.history || []);
-      if (state.nowPlaying && state.nowPlaying.id !== currentId) {
-        playSong(state.nowPlaying.id);
+
+      if (state.nowPlaying) {
+        if (state.nowPlaying.id !== currentId) {
+          playSong(state.nowPlaying.id);
+        }
+      } else {
+        console.warn('No nowPlaying received – forcing next');
+        socket.emit('nextSong');
       }
     }
 
