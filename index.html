@@ -104,6 +104,7 @@
 
     function onPlayerStateChange(e) {
       if (e.data === YT.PlayerState.ENDED) {
+        console.log('Video ended – requesting next song'); // debug log (remove later if you want)
         socket.emit('nextSong');
       }
     }
