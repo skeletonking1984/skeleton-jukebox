@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const fetch = require('node-fetch');
@@ -9,8 +10,13 @@ const io = new Server(httpServer, { cors: { origin: "*" } });
 
 app.use(express.static('public'));
 
+// ← THIS IS THE FIX (renders the jukebox page)
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/index.html'));
+});
+
 let nowPlaying = null;
-let queue = []; // [{id, title, requester}]
+let queue = [];
 
 function extractVideoId(url) {
   const match = url.match(/(?:youtu\.be\/|youtube\.com.*[?&]v=|youtube\.com\/embed\/)([^&?]+)/);
@@ -36,15 +42,9 @@ io.on('connection', (socket) => {
       socket.emit('error', 'Invalid YouTube URL');
       return;
     }
-
     const song = { id: info.id, title: info.title, requester };
-
     queue.push(song);
-
-    if (!nowPlaying) {
-      nowPlaying = queue.shift();
-    }
-
+    if (!nowPlaying) nowPlaying = queue.shift();
     io.emit('state', { nowPlaying, queue });
   });
 
@@ -68,12 +68,9 @@ io.on('connection', (socket) => {
     queue = [];
     io.emit('state', { nowPlaying, queue });
   });
-
-  socket.on('disconnect', () => {});
 });
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log(`\n💀 Skeleton Jukebox running on http://localhost:${PORT}\n`);
-  console.log('Open this URL on your main device (speakers) and share it with friends!');
+  console.log(`💀 Skeleton Jukebox running on http://localhost:${PORT}`);
 });
