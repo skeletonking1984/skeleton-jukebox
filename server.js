@@ -21,7 +21,8 @@ const fallbackSongs = [
   { id: "XaiYxczjZ0U", title: "Godsmack - Voodoo (Official Music Video)" },
   { id: "H-iPavAXQUk", title: "Kavinsky - Nightcall (Official Video)" },
   { id: "xGytDsqkQY8", title: "Semisonic - Closing Time (Official Music Video)" },
-  { id: "JnRw8bXVbPI", title: "The Verve - Bitter Sweet Symphony (Remastered 2016)" }
+  { id: "JnRw8bXVbPI", title: "The Verve - Bitter Sweet Symphony (Remastered 2016)" },
+  { id: "49FB9hhoO6c", title: "Pixies - Where is My Mind?" }
 ];
 
 function getRandomSong() {
