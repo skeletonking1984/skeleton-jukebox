@@ -7,7 +7,6 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: "*" } });
 
-// Simple paths that work on Render
 app.get('/', (req, res) => {
   res.sendFile('index.html', { root: process.cwd() });
 });
