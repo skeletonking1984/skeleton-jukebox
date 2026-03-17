@@ -33,7 +33,7 @@ function getRandomSong() {
 let nowPlaying = getRandomSong();
 let queue = [];
 let history = [];
-let lastAdvancedSongId = null;  // ← NEW: prevent double-advance
+let lastAdvanceTime = 0;  // prevents duplicate advances
 
 if (fs.existsSync(STATE_FILE)) {
   try {
@@ -76,23 +76,22 @@ io.on('connection', (socket) => {
   });
 
   socket.on('nextSong', () => {
-    // Guard: only advance if this is still the current song
-    if (nowPlaying && (!lastAdvancedSongId || lastAdvancedSongId === nowPlaying.id)) {
-      if (nowPlaying) {
-        history.unshift(nowPlaying);
-        if (history.length > 12) history.pop();
-      }
-      lastAdvancedSongId = nowPlaying ? nowPlaying.id : null;  // mark as advanced
+    console.log('nextSong received');  // ← debug log (remove later if you want)
 
-      nowPlaying = queue.length > 0 ? queue.shift() : getRandomSong();
-      saveState();
-      io.emit('state', { nowPlaying, queue, history });
+    const now = Date.now();
+    if (now - lastAdvanceTime < 1000) {
+      console.log('nextSong ignored (too soon after last advance)');
+      return;
     }
-    // else: ignore duplicate / stale nextSong call
-  });
 
-  socket.on('removeSong', (index) => {
-    if (index >= 0 && index < queue.length) queue.splice(index, 1);
+    if (nowPlaying) {
+      history.unshift(nowPlaying);
+      if (history.length > 12) history.pop();
+    }
+
+    nowPlaying = queue.length > 0 ? queue.shift() : getRandomSong();
+    lastAdvanceTime = now;
+
     saveState();
     io.emit('state', { nowPlaying, queue, history });
   });
