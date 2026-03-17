@@ -1,5 +1,4 @@
 const express = require('express');
-const path = require('path');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const fetch = require('node-fetch');
@@ -8,12 +7,12 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: "*" } });
 
-// FIXED PATHS FOR RENDER
-app.use(express.static(path.join(process.cwd(), 'public')));
-
+// Super simple — serves index.html at root (no folder issues)
 app.get('/', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+  res.sendFile('index.html', { root: process.cwd() });
 });
+
+app.use(express.static(process.cwd()));
 
 let nowPlaying = null;
 let queue = [];
