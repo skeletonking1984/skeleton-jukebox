@@ -8,12 +8,11 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: "*" } });
 
-// Serve the public folder
-app.use(express.static(path.join(__dirname, 'public')));
+// FIXED PATHS FOR RENDER
+app.use(express.static(path.join(process.cwd(), 'public')));
 
-// This line was missing — it makes the homepage work
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
 });
 
 let nowPlaying = null;
