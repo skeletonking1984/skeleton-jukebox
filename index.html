@@ -153,12 +153,17 @@
       const empty = document.getElementById('empty-state');
       list.innerHTML = '';
       count.textContent = `(${q.length})`;
+
       if (q.length === 0) { 
         empty.classList.remove('hidden'); 
         return; 
       }
+
       empty.classList.add('hidden');
-      q.forEach((song) => {
+
+      // Show only first 3
+      const displayItems = q.slice(0, 3);
+      displayItems.forEach((song) => {
         const div = document.createElement('div');
         div.className = "flex gap-4 bg-zinc-950 p-5 rounded-2xl";
         div.innerHTML = `
@@ -170,6 +175,13 @@
         `;
         list.appendChild(div);
       });
+
+      if (q.length > 3) {
+        const more = document.createElement('div');
+        more.className = "text-center text-zinc-500 py-3 text-sm";
+        more.textContent = `+${q.length - 3} more in queue`;
+        list.appendChild(more);
+      }
     }
 
     function renderHistory(h) {
@@ -177,7 +189,10 @@
       const count = document.getElementById('history-count');
       list.innerHTML = '';
       count.textContent = `(${h.length})`;
-      h.forEach((song, i) => {
+
+      // Show only first 3
+      const displayItems = h.slice(0, 3);
+      displayItems.forEach((song, i) => {
         const div = document.createElement('div');
         div.className = "flex gap-4 bg-zinc-950 p-5 rounded-2xl";
         div.innerHTML = `
@@ -190,6 +205,13 @@
         `;
         list.appendChild(div);
       });
+
+      if (h.length > 3) {
+        const more = document.createElement('div');
+        more.className = "text-center text-zinc-500 py-3 text-sm";
+        more.textContent = `+${h.length - 3} more in history`;
+        list.appendChild(more);
+      }
     }
 
     function updateUI(state) {
