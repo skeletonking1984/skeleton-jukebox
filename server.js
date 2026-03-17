@@ -21,7 +21,21 @@ const fallbackSongs = [
   { id: "XaiYxczjZ0U", title: "Godsmack - Voodoo (Official Music Video)" },
   { id: "H-iPavAXQUk", title: "Kavinsky - Nightcall (Official Video)" },
   { id: "xGytDsqkQY8", title: "Semisonic - Closing Time (Official Music Video)" },
-  { id: "JnRw8bXVbPI", title: "The Verve - Bitter Sweet Symphony (Remastered 2016)" }
+  { id: "JnRw8bXVbPI", title: "The Verve - Bitter Sweet Symphony (Remastered 2016)" },
+  { id: "49FB9hhoO6c", title: "Pixies - Where is My Mind?" },
+  { id: "_FrOQC-zEog", title: "Pink Floyd - Comfortably Numb" },
+  { id: "7Y8VPQcPHhY", title: "Notorious B.I.G - Juicy" },
+  { id: "1DoI5WTjd3w", title: "Imagine Dragons - Follow You (Lyric Video)" },
+  { id: "1zCOWHxrGs8", title: "Virtual Riot & Panda Eyes - Superheroes" },
+  { id: "bc0KhhjJP98", title: "Redbone - Come and Get Your Love" },
+  { id: "y69gQtAdHKc", title: "Scott Pilgrim Vs. The World - Black Sheep" },
+  { id: "jmhoOp2fUzg", title: "Harry Chapin - Cat's in the Cradle" },
+  { id: "U3PFcV04ego", title: "DMX - The Convo" },
+  { id: "Dy4HA3vUv2c", title: "Blue Oyster Cult - (Don't Fear) The Reaper" },
+  { id: "Hlx4O20E-Fg", title: "Crazy Town - Butterfly" },
+  { id: "jSPpbOGnFgk", title: "The Ronettes - Be My Baby (Official Audio)" },
+  { id: "H-RBJNqdnoM", title: "The Fugees - Killing Me Softly" },
+  { id: "HLUX0y4EptA", title: "Flobots - Handlebars" }
 ];
 
 function getRandomSong() {
