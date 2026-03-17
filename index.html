@@ -51,10 +51,7 @@
           </div>
         </div>
 
-        <div class="flex gap-4 mt-6">
-          <button onclick="skipCurrent()" class="flex-1 bg-red-600 py-6 rounded-3xl font-bold text-xl">⏭️ SKIP THIS BANGER</button>
-          <button onclick="newSession()" class="flex-1 bg-zinc-900 border border-yellow-400 py-6 rounded-3xl font-bold text-xl">🔄 NEW SESSION</button>
-        </div>
+        <!-- Removed the entire controls row with SKIP and NEW SESSION buttons -->
       </div>
 
       <div class="lg:col-span-4 space-y-8">
@@ -79,7 +76,7 @@
     </div>
   </div>
 
-  <!-- TOASTS -->
+  <!-- TOASTS remain unchanged -->
   <div id="share-toast" class="hidden fixed bottom-8 left-1/2 -translate-x-1/2 bg-zinc-900 border border-yellow-400 rounded-3xl px-8 py-5 shadow-2xl flex items-center gap-6 z-[100]">
     <div>
       <div class="text-yellow-300 text-sm">YOU JUST QUEUED</div>
@@ -96,8 +93,8 @@
 
   <script>
     let socket, player, currentId = null;
-    let lastEndedId = null;          // Prevents duplicate ENDED events
-    let endedDebounceTimer = null;   // Debounces rapid ENDED fires
+    let lastEndedId = null;
+    let endedDebounceTimer = null;
     const JUKEBOX_URL = "https://skeleton-jukebox.onrender.com";
     let hasStarted = false;
 
@@ -215,7 +212,6 @@
     }
 
     function reQueue(i) { socket.emit('reQueue', i); }
-    function newSession() { if (confirm("Start a completely new session?")) socket.emit('newSession'); }
     function shareNowPlaying() {
       const title = document.getElementById('now-title').textContent;
       if (!title) return;
@@ -228,7 +224,6 @@
       navigator.clipboard.writeText(text).then(() => { alert("✅ Copied!"); hideToast(); });
     }
     function hideToast() { document.getElementById('share-toast').classList.add('hidden'); }
-    function skipCurrent() { if (confirm("Skip?")) socket.emit('nextSong'); }
     function removeSong(i) { if (confirm("Remove?")) socket.emit('removeSong', i); }
 
     window.onload = () => {
@@ -238,14 +233,12 @@
     };
 
     window.addSong = addSong;
-    window.skipCurrent = skipCurrent;
     window.removeSong = removeSong;
     window.shareNowPlaying = shareNowPlaying;
     window.shareQueuedSong = shareQueuedSong;
     window.hideToast = hideToast;
     window.startPlaying = startPlaying;
     window.reQueue = reQueue;
-    window.newSession = newSession;
   </script>
 </body>
 </html>
