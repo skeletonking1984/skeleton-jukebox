@@ -12,8 +12,30 @@ app.get('/', (req, res) => {
 });
 app.use(express.static(process.cwd()));
 
+// 🔥 RANDOM FALLBACK SONGS (add/remove as many as you want)
+const fallbackSongs = [
+  { id: "kXYiU_JCYtU", title: "Linkin Park - In The End" },
+  { id: "hTWKbfoikeg", title: "Nirvana - Smells Like Teen Spirit" },
+  { id: "CD_8iYQh3lY", title: "Metallica - Enter Sandman" },
+  { id: "v2AC41dglnM", title: "AC/DC - Thunderstruck" },
+  { id: "1w7OgIMMRc4", title: "Guns N' Roses - Sweet Child O' Mine" },
+  { id: "-tJYN-eG1zk", title: "Queen - We Will Rock You" },
+  { id: "z5rRZdiu1zI", title: "Beastie Boys - Sabotage" },
+  { id: "b8-tXG8KrWs", title: "Rage Against The Machine - Killing In The Name" },
+  { id: "6mYxQ6s3dF4", title: "Foo Fighters - Everlong" },
+  { id: "eJO5X2yW8i8", title: "Eminem - The Real Slim Shady" }
+];
+
+function getRandomSong() {
+  const random = fallbackSongs[Math.floor(Math.random() * fallbackSongs.length)];
+  return { ...random, requester: "Random Skeleton Pick 💀" };
+}
+
 let nowPlaying = null;
 let queue = [];
+
+// Auto-start a random song when server starts (so it's never silent)
+nowPlaying = getRandomSong();
 
 function extractVideoId(url) {
   const match = url.match(/(?:youtu\.be\/|youtube\.com.*[?&]v=|youtube\.com\/embed\/)([^&?]+)/);
@@ -49,7 +71,7 @@ io.on('connection', (socket) => {
     if (queue.length > 0) {
       nowPlaying = queue.shift();
     } else {
-      nowPlaying = null;
+      nowPlaying = getRandomSong();   // ← THIS IS THE MAGIC
     }
     io.emit('state', { nowPlaying, queue });
   });
@@ -69,5 +91,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log(`💀 Skeleton Jukebox running on port ${PORT}`);
+  console.log(`💀 Skeleton Jukebox running on port ${PORT} (random mode ON)`);
 });
