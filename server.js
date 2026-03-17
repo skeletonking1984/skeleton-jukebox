@@ -21,8 +21,7 @@ const fallbackSongs = [
   { id: "XaiYxczjZ0U", title: "Godsmack - Voodoo (Official Music Video)" },
   { id: "H-iPavAXQUk", title: "Kavinsky - Nightcall (Official Video)" },
   { id: "xGytDsqkQY8", title: "Semisonic - Closing Time (Official Music Video)" },
-  { id: "JnRw8bXVbPI", title: "The Verve - Bitter Sweet Symphony (Remastered 2016)" },
-  { id: "49FB9hhoO6c", title: "Pixies - Where is My Mind?" }
+  { id: "JnRw8bXVbPI", title: "The Verve - Bitter Sweet Symphony (Remastered 2016)" }
 ];
 
 function getRandomSong() {
@@ -33,7 +32,7 @@ function getRandomSong() {
 let nowPlaying = getRandomSong();
 let queue = [];
 let history = [];
-let lastAdvanceTime = 0;  // prevents duplicate advances
+let lastAdvanceTime = 0;
 
 if (fs.existsSync(STATE_FILE)) {
   try {
@@ -69,18 +68,30 @@ io.on('connection', (socket) => {
   socket.on('addSong', async ({ url, requester }) => {
     const info = await getVideoInfo(url);
     if (!info.id) return socket.emit('error', 'Invalid YouTube URL');
+
+    const wasEmpty = queue.length === 0;
+
     queue.push({ id: info.id, title: info.title, requester });
-    if (!nowPlaying) nowPlaying = queue.shift();
+
+    // If queue was empty → interrupt current random song and play the new one immediately
+    if (wasEmpty && nowPlaying?.requester.includes("Random Skeleton Pick")) {
+      if (nowPlaying) {
+        history.unshift(nowPlaying);
+        if (history.length > 12) history.pop();
+      }
+      nowPlaying = queue.shift(); // Play the newly added song right now
+    }
+
     saveState();
     io.emit('state', { nowPlaying, queue, history });
   });
 
   socket.on('nextSong', () => {
-    console.log('nextSong received');  // ← debug log (remove later if you want)
+    console.log('nextSong received');
 
     const now = Date.now();
     if (now - lastAdvanceTime < 1000) {
-      console.log('nextSong ignored (too soon after last advance)');
+      console.log('nextSong ignored (too soon)');
       return;
     }
 
