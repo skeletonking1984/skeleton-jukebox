@@ -46,28 +46,24 @@ const fallbackSongIds = [
   "Mb1ZvUDvLDY",
   "dLl4PZtxia8",
   "HKGjCPBSG38",
-  "IYAXM9klOCE"
+  "IYAXM9klOCE",
+  "RBtlPT23PTM"
 ];
 
 async function getVideoMetadata(videoId) {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
-    console.warn('No YOUTUBE_API_KEY – using fallback');
+    console.warn('No YOUTUBE_API_KEY - using fallback');
     return { title: 'Unknown Banger', artist: 'Unknown' };
   }
-
   try {
     const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-
     if (data.items?.length > 0) {
       const snippet = data.items[0].snippet;
-      return {
-        title: snippet.title || 'Unknown Banger',
-        artist: snippet.channelTitle || 'Unknown Artist'
-      };
+      return { title: snippet.title || 'Unknown Banger', artist: snippet.channelTitle || 'Unknown Artist' };
     }
     return { title: 'Unknown Banger', artist: 'Unknown' };
   } catch (e) {
@@ -79,14 +75,11 @@ async function getVideoMetadata(videoId) {
 async function getRandomSong() {
   const id = fallbackSongIds[Math.floor(Math.random() * fallbackSongIds.length)];
   const { title, artist } = await getVideoMetadata(id);
-  return { id, title, artist, requester: "Random Skeleton Pick 💀" };
+  return { id, title, artist, requester: "Random Skeleton Pick 👻" };
 }
 
-// Async init for nowPlaying
 let nowPlaying;
-(async () => {
-  nowPlaying = await getRandomSong();
-})();
+(async () => { nowPlaying = await getRandomSong(); })();
 
 let queue = [];
 let history = [];
@@ -98,28 +91,30 @@ if (fs.existsSync(STATE_FILE)) {
     if (data.nowPlaying) nowPlaying = data.nowPlaying;
     if (data.queue) queue = data.queue;
     if (data.history) history = data.history;
-  } catch (e) {
-    console.error('Failed to load state:', e);
-  }
+  } catch (e) { console.error('Failed to load state:', e); }
+}
+
+function addToHistory(song) {
+  if (!song || !song.id) return;
+  history = history.filter(h => h.id !== song.id);
+  history.unshift(song);
+  if (history.length > 12) history.pop();
 }
 
 function saveState() {
   try {
     fs.writeFileSync(STATE_FILE, JSON.stringify({ nowPlaying, queue, history }, null, 2));
-  } catch (e) {
-    console.error('Failed to save state:', e);
-  }
+  } catch (e) { console.error('Failed to save state:', e); }
 }
 
 function extractVideoId(url) {
-  const match = url.match(/(?:youtu\.be\/|youtube\.com.*[?&]v=|youtube\.com\/embed\/)([^&?]+)/);
+  const match = url.match(/(?:(?:youtu\.be\/|youtube\.com.*[?&]v=|youtube\.com\/embed\/)([^&]+))/);
   return match ? match[1] : null;
 }
 
 async function getVideoInfo(url) {
   const id = extractVideoId(url);
   if (!id) return { title: 'Unknown Banger', artist: 'Unknown', id: null };
-
   const { title, artist } = await getVideoMetadata(id);
   return { title, artist, id };
 }
@@ -132,41 +127,26 @@ io.on('connection', (socket) => {
     if (!info.id) return socket.emit('error', 'Invalid YouTube URL');
 
     const wasEmpty = queue.length === 0;
-
     queue.push({ id: info.id, title: info.title, artist: info.artist, requester });
 
     if (wasEmpty && nowPlaying?.requester?.includes("Random Skeleton Pick")) {
-      if (nowPlaying) {
-        history.unshift(nowPlaying);
-        if (history.length > 12) history.pop();
-      }
+      if (nowPlaying) addToHistory(nowPlaying);
       nowPlaying = queue.shift();
     }
-
     saveState();
     io.emit('state', { nowPlaying, queue, history });
   });
 
   socket.on('nextSong', async () => {
     console.log('nextSong received');
-
     const now = Date.now();
-    if (now - lastAdvanceTime < 1000) {
-      console.log('nextSong ignored (too soon)');
-      return;
-    }
+    if (now - lastAdvanceTime < 1000) { console.log('nextSong ignored (too soon)'); return; }
 
-    if (nowPlaying) {
-      history.unshift(nowPlaying);
-      if (history.length > 12) history.pop();
-    }
-
+    if (nowPlaying) addToHistory(nowPlaying);
     nowPlaying = queue.length > 0 ? queue.shift() : await getRandomSong();
-
     if (!nowPlaying) nowPlaying = await getRandomSong();
 
     lastAdvanceTime = now;
-
     saveState();
     io.emit('state', { nowPlaying, queue, history });
   });
@@ -179,4 +159,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => console.log(`💀 Skeleton Jukebox running on port ${PORT}`));
+httpServer.listen(PORT, () => console.log(`🎧 Skeleton Jukebox running on port ${PORT}`));
