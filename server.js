@@ -15,39 +15,11 @@ app.get('/', (req, res) => res.sendFile('index.html', { root: process.cwd() }));
 app.use(express.static(process.cwd()));
 
 const fallbackSongIds = [
-  "kXYiU_JCYtU",
-  "hTWKbfoikeg",
-  "XZuM4zFg-60",
-  "XaiYxczjZ0U",
-  "H-iPavAXQUk",
-  "xGytDsqkQY8",
-  "JnRw8bXVbPI",
-  "49FB9hhoO6c",
-  "_FrOQC-zEog",
-  "7Y8VPQcPHhY",
-  "1DoI5WTjd3w",
-  "1zCOWHxrGs8",
-  "bc0KhhjJP98",
-  "y69gQtAdHKc",
-  "jmhoOp2fUzg",
-  "U3PFcV04ego",
-  "Dy4HA3vUv2c",
-  "Hlx4O20E-Fg",
-  "jSPpbOGnFgk",
-  "H-RBJNqdnoM",
-  "HLUX0y4EptA",
-  "HNBCVM4KbUM",
-  "aOkiG53ituQ",
-  "kbvpwnDeisk",
-  "zG5FPc-qDv0",
-  "wy709iNG6i8",
-  "2jj-wO7L2V8",
-  "bO28lB1uwp4",
-  "Mb1ZvUDvLDY",
-  "dLl4PZtxia8",
-  "HKGjCPBSG38",
-  "IYAXM9klOCE",
-  "RBtlPT23PTM"
+  "kXYiU_JcYtU", "hTwKbfloikeg", "XZuM4zFg-60", "Xa1YxczjZ0U", "H-iPavAXQuK",
+  "x6ytDsqkQY8", "JnRw8bXVbPI", "49FB9hhoO6c", "_Fr0QC-zE0g", "7Y8VPQcPHhY",
+  "1DoI5WTjd3w", "lzC0WHxrGs8", "bc0KhhjJP98", "y69gQtAdHKc", "jmhoOp2fluzg",
+  "U3PFcV04ego", "Dy4HA3vUv2c", "H1x4020E-Fg", "jSRpb0GnFgK", "H-RBJNqdnoM",
+  "HLUX0y4EptA", "HNBCVM4KbUM"
 ];
 
 async function getVideoMetadata(videoId) {
@@ -63,7 +35,10 @@ async function getVideoMetadata(videoId) {
     const data = await res.json();
     if (data.items?.length > 0) {
       const snippet = data.items[0].snippet;
-      return { title: snippet.title || 'Unknown Banger', artist: snippet.channelTitle || 'Unknown Artist' };
+      return { 
+        title: snippet.title || 'Unknown Banger', 
+        artist: snippet.channelTitle || 'Unknown Artist' 
+      };
     }
     return { title: 'Unknown Banger', artist: 'Unknown' };
   } catch (e) {
@@ -79,7 +54,9 @@ async function getRandomSong() {
 }
 
 let nowPlaying;
-(async () => { nowPlaying = await getRandomSong(); })();
+(async () => {
+  nowPlaying = await getRandomSong();
+})();
 
 let queue = [];
 let history = [];
@@ -91,20 +68,17 @@ if (fs.existsSync(STATE_FILE)) {
     if (data.nowPlaying) nowPlaying = data.nowPlaying;
     if (data.queue) queue = data.queue;
     if (data.history) history = data.history;
-  } catch (e) { console.error('Failed to load state:', e); }
-}
-
-function addToHistory(song) {
-  if (!song || !song.id) return;
-  history = history.filter(h => h.id !== song.id);
-  history.unshift(song);
-  if (history.length > 12) history.pop();
+  } catch (e) {
+    console.error('Failed to load state:', e);
+  }
 }
 
 function saveState() {
   try {
     fs.writeFileSync(STATE_FILE, JSON.stringify({ nowPlaying, queue, history }, null, 2));
-  } catch (e) { console.error('Failed to save state:', e); }
+  } catch (e) {
+    console.error('Failed to save state:', e);
+  }
 }
 
 function extractVideoId(url) {
@@ -130,7 +104,10 @@ io.on('connection', (socket) => {
     queue.push({ id: info.id, title: info.title, artist: info.artist, requester });
 
     if (wasEmpty && nowPlaying?.requester?.includes("Random Skeleton Pick")) {
-      if (nowPlaying) addToHistory(nowPlaying);
+      if (nowPlaying) {
+        history.unshift(nowPlaying);
+        if (history.length > 12) history.pop();
+      }
       nowPlaying = queue.shift();
     }
     saveState();
@@ -140,19 +117,25 @@ io.on('connection', (socket) => {
   socket.on('nextSong', async () => {
     console.log('nextSong received');
     const now = Date.now();
-    if (now - lastAdvanceTime < 1000) { console.log('nextSong ignored (too soon)'); return; }
-
-    if (nowPlaying) addToHistory(nowPlaying);
+    if (now - lastAdvanceTime < 1000) {
+      console.log('nextSong ignored (too soon)');
+      return;
+    }
+    if (nowPlaying) {
+      history.unshift(nowPlaying);
+      if (history.length > 12) history.pop();
+    }
     nowPlaying = queue.length > 0 ? queue.shift() : await getRandomSong();
     if (!nowPlaying) nowPlaying = await getRandomSong();
-
     lastAdvanceTime = now;
     saveState();
     io.emit('state', { nowPlaying, queue, history });
   });
 
   socket.on('reQueue', (index) => {
-    if (index >= 0 && index < history.length) queue.push(history[index]);
+    if (index >= 0 && index < history.length) {
+      queue.push(history[index]);
+    }
     saveState();
     io.emit('state', { nowPlaying, queue, history });
   });
