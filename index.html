@@ -16,7 +16,6 @@
 </head>
 <body class="text-white min-h-screen">
   <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-    <!-- header same as before -->
     <div class="flex justify-between items-center mb-6 lg:mb-10">
       <div class="flex items-center gap-3 lg:gap-4">
         <div class="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-red-600 to-yellow-400 rounded-2xl flex items-center justify-center text-4xl sm:text-5xl">🎧</div>
@@ -28,32 +27,57 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-      <!-- player section same -->
-      <div class="lg:col-span-8 border border-yellow-400/30 rounded-3xl overflow-hidden">
-        <div id="player-container" class="player-container bg-black relative">
+      <!-- PLAYER -->
+      <div class="lg:col-span-8">
+        <div class="player-container bg-black border border-yellow-400/30 rounded-3xl overflow-hidden">
           <div id="player" class="w-full h-full"></div>
-          <!-- autoplay overlay same -->
+          <div id="autoplay-overlay" class="absolute inset-0 bg-black/90 flex items-center justify-center z-50 cursor-pointer" onclick="startPlaying()">
+            <div class="text-center">
+              <div class="text-5xl mb-4">▶️</div>
+              <div class="text-2xl font-black tracking-widest">CLICK TO JOIN THE PARTY</div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- now playing same -->
-      <div id="now-playing" class="lg:col-span-4 ..."> ... </div>
+      <!-- NOW PLAYING -->
+      <div id="now-playing" class="lg:col-span-4 bg-zinc-900 border border-zinc-700 rounded-3xl p-6 hidden">
+        <div class="flex gap-4">
+          <div id="now-thumbnail" class="w-20 h-20 bg-zinc-800 rounded-xl overflow-hidden"></div>
+          <div class="flex-1">
+            <h2 id="now-title" class="text-xl font-bold"></h2>
+            <p id="now-artist" class="text-sm text-zinc-400"></p>
+            <p id="now-requester" class="text-xs text-zinc-500"></p>
+          </div>
+        </div>
+      </div>
 
-      <!-- request form same -->
-      <div class="lg:col-span-4 ..."> ... THROW IT IN 👄 ... </div>
+      <!-- REQUEST -->
+      <div class="lg:col-span-4 bg-zinc-900 border border-zinc-700 rounded-3xl p-6">
+        <h3 class="font-bold text-xl mb-4">REQUEST A SONG</h3>
+        <input id="url-input" type="text" placeholder="https://youtu.be/..." class="w-full bg-black border border-zinc-700 rounded-2xl px-6 py-4 text-base">
+        <input id="requester-input" type="text" value="Skeleton Fan" class="mt-3 w-full bg-black border border-zinc-700 rounded-2xl px-6 py-4 text-base">
+        <button onclick="addSong()" class="mt-6 w-full bg-gradient-to-r from-yellow-400 to-red-500 py-5 rounded-3xl text-xl font-black">THROW IT IN 👄</button>
+      </div>
 
-      <!-- UP NEXT same -->
-      <div class="lg:col-span-4 ..."> ... </div>
+      <!-- UP NEXT -->
+      <div class="lg:col-span-4 bg-zinc-900 border border-zinc-700 rounded-3xl p-6 flex flex-col">
+        <h3 class="font-bold text-xl mb-4">UP NEXT <span id="queue-count">(0)</span></h3>
+        <div id="queue-list" class="flex-1 space-y-3 overflow-auto"></div>
+        <div id="empty-state" class="hidden text-zinc-500 text-center py-8">Queue empty</div>
+      </div>
 
-      <!-- PREVIOUSLY PLAYED same -->
-      <div class="lg:col-span-4 ..."> ... </div>
+      <!-- PREVIOUSLY PLAYED -->
+      <div class="lg:col-span-4 bg-zinc-900 border border-zinc-700 rounded-3xl p-6 flex flex-col">
+        <h3 class="font-bold text-xl mb-4">PREVIOUSLY PLAYED</h3>
+        <div id="history-list" class="flex-1 space-y-3 overflow-auto"></div>
+      </div>
     </div>
 
     <!-- TOASTS -->
-    <div id="share-toast" class="hidden ..."> ... </div>
-    <div id="error-toast" class="hidden fixed ... bg-red-600/90 ...">
-      <div class="text-2xl sm:text-3xl">❌</div>
-      <div id="error-text" class="font-bold text-sm sm:text-base">This song can't be embedded (copyright/owner) – auto-skipping...</div>
+    <div id="error-toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-red-600/90 border border-red-400 rounded-3xl px-8 py-4 shadow-2xl flex items-center gap-4 z-50">
+      <div class="text-3xl">❌</div>
+      <div id="error-text" class="font-bold">This song can't be embedded (copyright) – auto-skipping...</div>
     </div>
   </div>
 
@@ -72,27 +96,18 @@ window.onYouTubeIframeAPIReady = () => {
 };
 
 function onPlayerStateChange(e) {
-  if (e.data === YT.PlayerState.PLAYING) {
-    if (playWatchdog) clearTimeout(playWatchdog);
-  }
-  if (e.data === YT.PlayerState.ENDED) {
-    socket.emit('nextSong');
-  }
+  if (e.data === YT.PlayerState.ENDED) socket.emit('nextSong');
 }
 
 function onPlayerError(event) {
   const blocked = [100, 101, 150, 5];
   if (blocked.includes(event.data)) {
-    document.getElementById('error-text').textContent = 'This song can't be embedded (copyright/owner) – auto-skipping...';
+    document.getElementById('error-text').textContent = 'This song can't be embedded (copyright) – auto-skipping...';
     document.getElementById('error-toast').classList.remove('hidden');
-    setTimeout(() => {
-      document.getElementById('error-toast').classList.add('hidden');
-      socket.emit('nextSong');
-    }, 1800);
+    setTimeout(() => { document.getElementById('error-toast').classList.add('hidden'); socket.emit('nextSong'); }, 1800);
   }
 }
 
-// IMPROVED: stop first + tiny delay to prevent false YouTube errors on interrupt
 function playSong(id) {
   currentId = id;
   if (player) {
@@ -102,12 +117,17 @@ function playSong(id) {
     setTimeout(() => {
       player.loadVideoById(id);
       if (!hasStarted && player) player.playVideo();
-    }, 100);
+    }, 150);
   }
 }
 
-// rest of script exactly the same (render functions, addSong, etc.)
-// ... (keep everything from your current index.html after this point)
+function startPlaying() {
+  document.getElementById('autoplay-overlay').style.display = 'none';
+  hasStarted = true;
+  if (player && currentId) player.playVideo();
+}
+
+// REST OF SCRIPT (render functions, addSong, updateUI, etc.) — exactly as in your original PDF version (pages 9-14). No other changes needed.
 
 window.onload = () => {
   socket = io();
@@ -115,11 +135,11 @@ window.onload = () => {
   socket.on('error', alert);
 };
 window.addSong = addSong;
+window.reQueue = reQueue;
 window.shareNowPlaying = shareNowPlaying;
 window.shareQueuedSong = shareQueuedSong;
 window.hideToast = hideToast;
 window.startPlaying = startPlaying;
-window.reQueue = reQueue;
 </script>
 </body>
 </html>
