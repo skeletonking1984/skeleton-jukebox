@@ -14,37 +14,20 @@ const STATE_FILE = path.join(process.cwd(), 'jukebox-state.json');
 app.get('/', (req, res) => res.sendFile('index.html', { root: process.cwd() }));
 app.use(express.static(process.cwd()));
 
-const fallbackSongIds = [
-  "kXYiU_JcYtU", "hTwKbfloikeg", "XZuM4zFg-60", "Xa1YxczjZ0U", "H-iPavAXQuK",
-  "x6ytDsqkQY8", "JnRw8bXVbPI", "49FB9hhoO6c", "_Fr0QC-zE0g", "7Y8VPQcPHhY",
-  "1DoI5WTjd3w", "lzC0WHxrGs8", "bc0KhhjJP98", "y69gQtAdHKc", "jmhoOp2fluzg",
-  "U3PFcV04ego", "Dy4HA3vUv2c", "H1x4020E-Fg", "jSRpb0GnFgK", "H-RBJNqdnoM",
-  "HLUX0y4EptA", "HNBCVM4KbUM"
-];
+const fallbackSongIds = ["kXYiU_JcYtU","hTwKbfloikeg","XZuM4zFg-60","Xa1YxczjZ0U","H-iPavAXQuK","x6ytDsqkQY8","JnRw8bXVbPI","49FB9hhoO6c","_Fr0QC-zE0g","7Y8VPQcPHhY","1DoI5WTjd3w","lzC0WHxrGs8","bc0KhhjJP98","y69gQtAdHKc","jmhoOp2fluzg","U3PFcV04ego","Dy4HA3vUv2c","H1x4020E-Fg","jSRpb0GnFgK","H-RBJNqdnoM","HLUX0y4EptA","HNBCVM4KbUM"];
 
 async function getVideoMetadata(videoId) {
   const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) {
-    console.warn('⚠️ No YOUTUBE_API_KEY - using fallback');
-    return { title: 'Unknown Banger', artist: 'Unknown' };
-  }
+  if (!apiKey) return { title: 'Unknown Banger', artist: 'Unknown' };
   try {
-    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`);
     const data = await res.json();
-    if (data.items?.length > 0) {
-      const snippet = data.items[0].snippet;
-      return { 
-        title: snippet.title || 'Unknown Banger', 
-        artist: snippet.channelTitle || 'Unknown Artist' 
-      };
+    if (data.items?.length) {
+      const s = data.items[0].snippet;
+      return { title: s.title, artist: s.channelTitle };
     }
-    return { title: 'Unknown Banger', artist: 'Unknown' };
-  } catch (e) {
-    console.error('YouTube API error for', videoId, ':', e.message);
-    return { title: 'Unknown Banger', artist: 'Unknown' };
-  }
+  } catch {}
+  return { title: 'Unknown Banger', artist: 'Unknown' };
 }
 
 async function getRandomSong() {
@@ -66,32 +49,21 @@ if (fs.existsSync(STATE_FILE)) {
     if (data.nowPlaying) nowPlaying = data.nowPlaying;
     if (data.queue) queue = data.queue;
     if (data.history) history = data.history;
-  } catch (e) {
-    console.error('Failed to load state:', e);
-  }
+  } catch (e) { console.error('load state fail', e); }
 }
 
 function saveState() {
-  try {
-    fs.writeFileSync(STATE_FILE, JSON.stringify({ nowPlaying, queue, history }, null, 2));
-  } catch (e) {
-    console.error('Failed to save state:', e);
-  }
+  fs.writeFileSync(STATE_FILE, JSON.stringify({ nowPlaying, queue, history }, null, 2));
 }
 
 function extractVideoId(url) {
   if (!url) return null;
-  url = url.trim();
   const patterns = [
-    /(?:https?:\/\/)?(?:www\.)?youtu\.be\/([^&\n?#]+)/i,
-    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([^&\n?#]+)/i,
-    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([^&\n?#]+)/i,
-    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/([^&\n?#]+)/i,
-    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/.*[?&]v=([^&\n?#]+)/i
+    /(?:youtu\.be\/|youtube\.com.*[?&]v=|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\n?#]+)/i
   ];
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match && match[1]) return match[1].split(/[?&]/)[0];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m && m[1]) return m[1].split(/[?&]/)[0];
   }
   return null;
 }
@@ -110,24 +82,16 @@ io.on('connection', (socket) => {
     const info = await getVideoInfo(url);
     if (!info.id) return socket.emit('error', 'Invalid YouTube URL');
 
-    const existingIndex = queue.findIndex(s => s.id === info.id);
-    if (existingIndex !== -1) {
-      socket.emit('duplicate', { title: info.title, position: existingIndex + 1 });
-      return;
-    }
-    if (nowPlaying && nowPlaying.id === info.id) {
-      socket.emit('duplicate', { title: info.title, position: "currently playing" });
-      return;
+    if (queue.some(s => s.id === info.id) || (nowPlaying && nowPlaying.id === info.id)) {
+      return socket.emit('duplicate', { title: info.title, position: nowPlaying && nowPlaying.id === info.id ? "currently playing" : queue.findIndex(s => s.id === info.id) + 1 });
     }
 
     const wasEmpty = queue.length === 0;
     queue.push({ id: info.id, title: info.title, artist: info.artist, requester });
 
     if (wasEmpty && nowPlaying?.requester?.includes("Random Skeleton Pick")) {
-      if (nowPlaying) {
-        history.unshift(nowPlaying);
-        if (history.length > 12) history.pop();
-      }
+      if (nowPlaying) history.unshift(nowPlaying);
+      if (history.length > 12) history.pop();
       nowPlaying = queue.shift();
     }
     saveState();
@@ -135,39 +99,22 @@ io.on('connection', (socket) => {
   });
 
   socket.on('nextSong', async () => {
-    console.log('🔄 [SERVER] nextSong event received');
+    console.log('🔄 nextSong received');
     const now = Date.now();
-    if (now - lastAdvanceTime < 1000) {
-      console.log('⏳ [SERVER] Ignored - too soon');
-      return;
-    }
+    if (now - lastAdvanceTime < 1000) return;
 
     if (nowPlaying) {
-      console.log(`📜 [SERVER] Moving "${nowPlaying.title}" to history`);
       history.unshift(nowPlaying);
       if (history.length > 12) history.pop();
     }
-
-    if (queue.length > 0) {
-      nowPlaying = queue.shift();
-      console.log(`✅ [SERVER] Playing next queued song: ${nowPlaying.title}`);
-    } else {
-      nowPlaying = await getRandomSong();
-      console.log(`🎲 [SERVER] Queue empty - playing random: ${nowPlaying.title}`);
-    }
-
+    nowPlaying = queue.length > 0 ? queue.shift() : await getRandomSong();
     lastAdvanceTime = now;
     saveState();
-    console.log('📡 [SERVER] Broadcasting new state');
     io.emit('state', { nowPlaying, queue, history });
   });
 
   socket.on('reQueue', (index) => {
-    if (index >= 0 && index < history.length) {
-      const song = history[index];
-      queue.push(song);
-      console.log(`🔄 [SERVER] Re-queued: ${song.title}`);
-    }
+    if (index >= 0 && index < history.length) queue.push(history[index]);
     saveState();
     io.emit('state', { nowPlaying, queue, history });
   });
