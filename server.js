@@ -43,7 +43,10 @@ const fallbackSongIds = [
   "wy709iNG6i8",
   "2jj-wO7L2V8",
   "bO28lB1uwp4",
-  "Mb1ZvUDvLDY"
+  "Mb1ZvUDvLDY",
+  "dLl4PZtxia8",
+  "HKGjCPBSG38",
+  "IYAXM9klOCE"
 ];
 
 async function getVideoMetadata(videoId) {
