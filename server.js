@@ -19,7 +19,7 @@ const fallbackSongIds = [
   "x6ytDsqkQY8", "JnRw8bXVbPI", "49FB9hhoO6c", "_Fr0QC-zE0g", "7Y8VPQcPHhY",
   "1DoI5WTjd3w", "lzC0WHxrGs8", "bc0KhhjJP98", "y69gQtAdHKc", "jmhoOp2fluzg",
   "U3PFcV04ego", "Dy4HA3vUv2c", "H1x4020E-Fg", "jSRpb0GnFgK", "H-RBJNqdnoM",
-  "HLUX0y4EptA", "HNBCVM4KbUM"
+  "HLUX0y4EptA", "HNBCVM4KbUM", "YaEG2aWJnZ8", "KNMRrVcgHq0", "nCEuT91UAcg", "XfSDt5Oqx_A"
 ];
 
 async function getVideoMetadata(videoId) {
