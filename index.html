@@ -156,7 +156,12 @@
       const container = document.getElementById('now-playing');
       if (!song) return container.classList.add('hidden');
       container.classList.remove('hidden');
-      document.getElementById('now-title').textContent = song.title;
+
+      const displayTitle = song.artist && song.title 
+        ? `${song.artist} - ${song.title}`
+        : song.title || 'Unknown Banger';
+
+      document.getElementById('now-title').textContent = displayTitle;
       document.getElementById('now-requester').textContent = `Requested by ${song.requester}`;
       document.getElementById('now-thumbnail').innerHTML = `<img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-full h-full object-cover">`;
     }
@@ -179,10 +184,15 @@
       displayItems.forEach((song) => {
         const div = document.createElement('div');
         div.className = "flex gap-4 bg-zinc-950 p-5 rounded-2xl";
+
+        const displayTitle = song.artist && song.title 
+          ? `${song.artist} - ${song.title}`
+          : song.title || 'Unknown Banger';
+
         div.innerHTML = `
           <img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-16 h-16 rounded-xl">
           <div class="flex-1">
-            <div class="font-medium">${song.title}</div>
+            <div class="font-medium">${displayTitle}</div>
             <div class="text-xs text-zinc-500">by ${song.requester}</div>
           </div>
         `;
@@ -207,11 +217,16 @@
       displayItems.forEach((song, i) => {
         const div = document.createElement('div');
         div.className = "flex flex-col gap-2 bg-zinc-950 p-4 rounded-2xl";
+
+        const displayTitle = song.artist && song.title 
+          ? `${song.artist} - ${song.title}`
+          : song.title || 'Unknown Banger';
+
         div.innerHTML = `
           <div class="flex gap-4">
             <img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-16 h-16 rounded-xl">
             <div class="flex-1">
-              <div class="font-medium">${song.title}</div>
+              <div class="font-medium">${displayTitle}</div>
               <div class="text-xs text-zinc-500">by ${song.requester}</div>
             </div>
           </div>
