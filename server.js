@@ -25,7 +25,7 @@ const fallbackSongIds = [
 async function getVideoMetadata(videoId) {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
-    console.warn('⚠️ No YOUTUBE_API_KEY - using fallback titles');
+    console.warn('⚠️ No YOUTUBE_API_KEY - using fallback');
     return { title: 'Unknown Banger', artist: 'Unknown' };
   }
   try {
@@ -79,11 +79,9 @@ function saveState() {
   }
 }
 
-// === FIXED: SUPER STRONG VIDEO ID EXTRACTOR ===
 function extractVideoId(url) {
   if (!url) return null;
   url = url.trim();
-
   const patterns = [
     /(?:https?:\/\/)?(?:www\.)?youtu\.be\/([^&\n?#]+)/i,
     /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([^&\n?#]+)/i,
@@ -91,16 +89,10 @@ function extractVideoId(url) {
     /(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/([^&\n?#]+)/i,
     /(?:https?:\/\/)?(?:www\.)?youtube\.com\/.*[?&]v=([^&\n?#]+)/i
   ];
-
   for (const pattern of patterns) {
     const match = url.match(pattern);
-    if (match && match[1]) {
-      const id = match[1].split(/[?&]/)[0];
-      console.log(`✅ Extracted ID: ${id} from "${url}"`);
-      return id;
-    }
+    if (match && match[1]) return match[1].split(/[?&]/)[0];
   }
-  console.log(`❌ Could not extract ID from: ${url}`);
   return null;
 }
 
@@ -115,17 +107,9 @@ io.on('connection', (socket) => {
   socket.emit('state', { nowPlaying, queue, history });
 
   socket.on('addSong', async ({ url, requester }) => {
-    console.log(`[ADD SONG] URL: ${url} | Requester: ${requester}`);
-    
     const info = await getVideoInfo(url);
-    if (!info.id) {
-      console.log('[ADD SONG] ❌ Invalid YouTube link');
-      return socket.emit('error', 'Could not read that YouTube link. Try a youtu.be or full youtube.com link.');
-    }
+    if (!info.id) return socket.emit('error', 'Invalid YouTube URL');
 
-    console.log(`[ADD SONG] ✅ Valid song – ID: ${info.id} | Title: ${info.title}`);
-
-    // Duplicate protection
     const existingIndex = queue.findIndex(s => s.id === info.id);
     if (existingIndex !== -1) {
       socket.emit('duplicate', { title: info.title, position: existingIndex + 1 });
@@ -146,13 +130,47 @@ io.on('connection', (socket) => {
       }
       nowPlaying = queue.shift();
     }
-
     saveState();
     io.emit('state', { nowPlaying, queue, history });
   });
 
-  socket.on('nextSong', async () => { /* unchanged from your last version */ });
-  socket.on('reQueue', (index) => { /* unchanged */ });
+  socket.on('nextSong', async () => {
+    console.log('🔄 [SERVER] nextSong event received');
+    const now = Date.now();
+    if (now - lastAdvanceTime < 1000) {
+      console.log('⏳ [SERVER] Ignored - too soon');
+      return;
+    }
+
+    if (nowPlaying) {
+      console.log(`📜 [SERVER] Moving "${nowPlaying.title}" to history`);
+      history.unshift(nowPlaying);
+      if (history.length > 12) history.pop();
+    }
+
+    if (queue.length > 0) {
+      nowPlaying = queue.shift();
+      console.log(`✅ [SERVER] Playing next queued song: ${nowPlaying.title}`);
+    } else {
+      nowPlaying = await getRandomSong();
+      console.log(`🎲 [SERVER] Queue empty - playing random: ${nowPlaying.title}`);
+    }
+
+    lastAdvanceTime = now;
+    saveState();
+    console.log('📡 [SERVER] Broadcasting new state');
+    io.emit('state', { nowPlaying, queue, history });
+  });
+
+  socket.on('reQueue', (index) => {
+    if (index >= 0 && index < history.length) {
+      const song = history[index];
+      queue.push(song);
+      console.log(`🔄 [SERVER] Re-queued: ${song.title}`);
+    }
+    saveState();
+    io.emit('state', { nowPlaying, queue, history });
+  });
 });
 
 const PORT = process.env.PORT || 3000;
