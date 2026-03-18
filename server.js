@@ -14,36 +14,70 @@ const STATE_FILE = path.join(process.cwd(), 'jukebox-state.json');
 app.get('/', (req, res) => res.sendFile('index.html', { root: process.cwd() }));
 app.use(express.static(process.cwd()));
 
-const fallbackSongs = [
-  { id: "kXYiU_JCYtU", title: "Linkin Park - Numb (Official Music Video)" },
-  { id: "hTWKbfoikeg", title: "Nirvana - Smells Like Teen Spirit (Official Music Video)" },
-  { id: "XZuM4zFg-60", title: "Metallica - Enter Sandman (Official Music Video)" },
-  { id: "XaiYxczjZ0U", title: "Godsmack - Voodoo (Official Music Video)" },
-  { id: "H-iPavAXQUk", title: "Kavinsky - Nightcall (Official Video)" },
-  { id: "xGytDsqkQY8", title: "Semisonic - Closing Time (Official Music Video)" },
-  { id: "JnRw8bXVbPI", title: "The Verve - Bitter Sweet Symphony (Remastered 2016)" },
-  { id: "49FB9hhoO6c", title: "Pixies - Where is My Mind?" },
-  { id: "_FrOQC-zEog", title: "Pink Floyd - Comfortably Numb" },
-  { id: "7Y8VPQcPHhY", title: "Notorious B.I.G - Juicy" },
-  { id: "1DoI5WTjd3w", title: "Imagine Dragons - Follow You (Lyric Video)" },
-  { id: "1zCOWHxrGs8", title: "Virtual Riot & Panda Eyes - Superheroes" },
-  { id: "bc0KhhjJP98", title: "Redbone - Come and Get Your Love" },
-  { id: "y69gQtAdHKc", title: "Scott Pilgrim Vs. The World - Black Sheep" },
-  { id: "jmhoOp2fUzg", title: "Harry Chapin - Cat's in the Cradle" },
-  { id: "U3PFcV04ego", title: "DMX - The Convo" },
-  { id: "Dy4HA3vUv2c", title: "Blue Oyster Cult - (Don't Fear) The Reaper" },
-  { id: "Hlx4O20E-Fg", title: "Crazy Town - Butterfly" },
-  { id: "jSPpbOGnFgk", title: "The Ronettes - Be My Baby (Official Audio)" },
-  { id: "H-RBJNqdnoM", title: "The Fugees - Killing Me Softly" },
-  { id: "HLUX0y4EptA", title: "Flobots - Handlebars" }
+const fallbackSongIds = [
+  "kXYiU_JCYtU",
+  "hTWKbfoikeg",
+  "XZuM4zFg-60",
+  "XaiYxczjZ0U",
+  "H-iPavAXQUk",
+  "xGytDsqkQY8",
+  "JnRw8bXVbPI",
+  "49FB9hhoO6c",
+  "_FrOQC-zEog",
+  "7Y8VPQcPHhY",
+  "1DoI5WTjd3w",
+  "1zCOWHxrGs8",
+  "bc0KhhjJP98",
+  "y69gQtAdHKc",
+  "jmhoOp2fUzg",
+  "U3PFcV04ego",
+  "Dy4HA3vUv2c",
+  "Hlx4O20E-Fg",
+  "jSPpbOGnFgk",
+  "H-RBJNqdnoM",
+  "HLUX0y4EptA",
+  "HNBCVM4KbUM"
 ];
 
-function getRandomSong() {
-  const random = fallbackSongs[Math.floor(Math.random() * fallbackSongs.length)];
-  return { ...random, requester: "Random Skeleton Pick 💀" };
+async function getVideoMetadata(videoId) {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) {
+    console.warn('No YOUTUBE_API_KEY – using fallback');
+    return { title: 'Unknown Banger', artist: 'Unknown' };
+  }
+
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    if (data.items?.length > 0) {
+      const snippet = data.items[0].snippet;
+      return {
+        title: snippet.title || 'Unknown Banger',
+        artist: snippet.channelTitle || 'Unknown Artist'
+      };
+    }
+    return { title: 'Unknown Banger', artist: 'Unknown' };
+  } catch (e) {
+    console.error('YouTube API error for', videoId, ':', e.message);
+    return { title: 'Unknown Banger', artist: 'Unknown' };
+  }
 }
 
-let nowPlaying = getRandomSong();
+async function getRandomSong() {
+  const id = fallbackSongIds[Math.floor(Math.random() * fallbackSongIds.length)];
+  const { title, artist } = await getVideoMetadata(id);
+  return { id, title, artist, requester: "Random Skeleton Pick 💀" };
+}
+
+// Async init for nowPlaying
+let nowPlaying;
+(async () => {
+  nowPlaying = await getRandomSong();
+})();
+
 let queue = [];
 let history = [];
 let lastAdvanceTime = 0;
@@ -54,11 +88,17 @@ if (fs.existsSync(STATE_FILE)) {
     if (data.nowPlaying) nowPlaying = data.nowPlaying;
     if (data.queue) queue = data.queue;
     if (data.history) history = data.history;
-  } catch (e) {}
+  } catch (e) {
+    console.error('Failed to load state:', e);
+  }
 }
 
 function saveState() {
-  fs.writeFileSync(STATE_FILE, JSON.stringify({ nowPlaying, queue, history }));
+  try {
+    fs.writeFileSync(STATE_FILE, JSON.stringify({ nowPlaying, queue, history }, null, 2));
+  } catch (e) {
+    console.error('Failed to save state:', e);
+  }
 }
 
 function extractVideoId(url) {
@@ -67,13 +107,11 @@ function extractVideoId(url) {
 }
 
 async function getVideoInfo(url) {
-  try {
-    const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
-    const data = await res.json();
-    return { title: data.title || 'Unknown Banger', id: extractVideoId(url) };
-  } catch (e) {
-    return { title: 'Unknown Banger', id: extractVideoId(url) };
-  }
+  const id = extractVideoId(url);
+  if (!id) return { title: 'Unknown Banger', artist: 'Unknown', id: null };
+
+  const { title, artist } = await getVideoMetadata(id);
+  return { title, artist, id };
 }
 
 io.on('connection', (socket) => {
@@ -85,22 +123,21 @@ io.on('connection', (socket) => {
 
     const wasEmpty = queue.length === 0;
 
-    queue.push({ id: info.id, title: info.title, requester });
+    queue.push({ id: info.id, title: info.title, artist: info.artist, requester });
 
-    // If queue was empty → interrupt current random song and play the new one immediately
-    if (wasEmpty && nowPlaying?.requester.includes("Random Skeleton Pick")) {
+    if (wasEmpty && nowPlaying?.requester?.includes("Random Skeleton Pick")) {
       if (nowPlaying) {
         history.unshift(nowPlaying);
         if (history.length > 12) history.pop();
       }
-      nowPlaying = queue.shift(); // Play the newly added song right now
+      nowPlaying = queue.shift();
     }
 
     saveState();
     io.emit('state', { nowPlaying, queue, history });
   });
 
-  socket.on('nextSong', () => {
+  socket.on('nextSong', async () => {
     console.log('nextSong received');
 
     const now = Date.now();
@@ -114,7 +151,10 @@ io.on('connection', (socket) => {
       if (history.length > 12) history.pop();
     }
 
-    nowPlaying = queue.length > 0 ? queue.shift() : getRandomSong();
+    nowPlaying = queue.length > 0 ? queue.shift() : await getRandomSong();
+
+    if (!nowPlaying) nowPlaying = await getRandomSong();
+
     lastAdvanceTime = now;
 
     saveState();
