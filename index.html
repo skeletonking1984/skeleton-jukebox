@@ -99,194 +99,98 @@
   </div>
 
   <script>
-    let socket, player, currentId = null;
-    let playWatchdog = null;
-    const JUKEBOX_URL = "https://skeleton-jukebox.onrender.com";
-    let hasStarted = false;
+let socket, player, currentId = null;
+let playWatchdog = null;
+let longWatchdog = null;   // safety net
+const JUKEBOX_URL = "https://skeleton-jukebox.onrender.com";
+let hasStarted = false;
 
-    window.onYouTubeIframeAPIReady = () => {
-      player = new YT.Player('player', {
-        width: '100%', height: '100%',
-        playerVars: { autoplay: 1, controls: 1, modestbranding: 1 },
-        events: { onStateChange: onPlayerStateChange, onError: onPlayerError }
-      });
-    };
+window.onYouTubeIframeAPIReady = () => {
+  player = new YT.Player('player', {
+    width: '100%', height: '100%',
+    playerVars: { autoplay: 1, controls: 1, modestbranding: 1 },
+    events: { onStateChange: onPlayerStateChange, onError: onPlayerError }
+  });
+};
 
-    function onPlayerStateChange(e) {
-      if (e.data === YT.PlayerState.PLAYING) {
-        if (playWatchdog) { clearTimeout(playWatchdog); playWatchdog = null; }
-      }
-      if (e.data === YT.PlayerState.ENDED) {
-        console.log('Video ended - requesting next song');
-        socket.emit('nextSong');
-      }
-    }
+function onPlayerStateChange(e) {
+  console.log(`[CLIENT] Player state: ${e.data}`);
+  if (e.data === YT.PlayerState.PLAYING) {
+    console.log('▶️ [CLIENT] Song PLAYING');
+    if (playWatchdog) clearTimeout(playWatchdog);
+    if (longWatchdog) clearTimeout(longWatchdog);
+  }
+  if (e.data === YT.PlayerState.ENDED) {
+    console.log('🎬 [CLIENT] Video ENDED – requesting next');
+    socket.emit('nextSong');
+  }
+}
 
-    function onPlayerError(event) {
-      const blocked = [100, 101, 150, 5];
-      if (blocked.includes(event.data)) {
-        document.getElementById('error-text').textContent = 'Song blocked - auto-skipping...';
-        document.getElementById('error-toast').classList.remove('hidden');
-        setTimeout(() => {
-          document.getElementById('error-toast').classList.add('hidden');
-          socket.emit('nextSong');
-        }, 1800);
-      }
-    }
+function onPlayerError(event) {
+  const blocked = [100, 101, 150, 5];
+  if (blocked.includes(event.data)) {
+    document.getElementById('error-text').textContent = 'Song blocked - auto-skipping...';
+    document.getElementById('error-toast').classList.remove('hidden');
+    setTimeout(() => {
+      document.getElementById('error-toast').classList.add('hidden');
+      socket.emit('nextSong');
+    }, 1800);
+  }
+}
 
-    function playSong(id) {
-      currentId = id;
-      if (player) {
-        player.loadVideoById(id);
-        if (playWatchdog) clearTimeout(playWatchdog);
-        playWatchdog = setTimeout(() => {
-          console.log('Play watchdog triggered - forcing next');
-          socket.emit('nextSong');
-        }, 8000);
-        setTimeout(() => {
-          if (!hasStarted && player) player.playVideo();
-        }, 800);
-      }
-    }
+function playSong(id) {
+  currentId = id;
+  if (player) {
+    player.loadVideoById(id);
+    if (playWatchdog) clearTimeout(playWatchdog);
+    if (longWatchdog) clearTimeout(longWatchdog);
 
-    function startPlaying() {
-      document.getElementById('autoplay-overlay').style.opacity = '0';
-      setTimeout(() => document.getElementById('autoplay-overlay').style.display = 'none', 600);
-      hasStarted = true;
-      if (player && currentId) player.playVideo();
-    }
+    playWatchdog = setTimeout(() => {
+      console.log('⏰ Short watchdog - forcing next');
+      socket.emit('nextSong');
+    }, 8000);
 
-    function renderNowPlaying(song) {
-      const container = document.getElementById('now-playing');
-      if (!song) return container.classList.add('hidden');
-      container.classList.remove('hidden');
-      document.getElementById('now-title').textContent = song.title || 'Unknown Banger';
-      document.getElementById('now-artist').textContent = song.artist || '';
-      document.getElementById('now-requester').textContent = `Requested by ${song.requester}`;
-      document.getElementById('now-thumbnail').innerHTML = `<img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-full h-full object-cover">`;
-    }
+    // 8-minute max song length safety net
+    longWatchdog = setTimeout(() => {
+      console.log('🛡️ Long safety watchdog – forcing next song');
+      socket.emit('nextSong');
+    }, 8 * 60 * 1000);
 
-    function renderQueue(q) {
-      const list = document.getElementById('queue-list');
-      const count = document.getElementById('queue-count');
-      const empty = document.getElementById('empty-state');
-      list.innerHTML = '';
-      count.textContent = `(${q.length})`;
-      if (q.length === 0) {
-        empty.classList.remove('hidden');
-        return;
-      }
-      empty.classList.add('hidden');
-      const displayItems = q.slice(0, 3);
-      displayItems.forEach((song) => {
-        const div = document.createElement('div');
-        div.className = "flex gap-4 bg-zinc-950 p-5 rounded-2xl";
-        div.innerHTML = `
-          <img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-16 h-16 rounded-xl">
-          <div class="flex-1">
-            <div class="font-medium">${song.title || 'Unknown Banger'}</div>
-            <div class="text-xs text-zinc-400">${song.artist || ''}</div>
-            <div class="text-xs text-zinc-500">by ${song.requester}</div>
-          </div>
-        `;
-        list.appendChild(div);
-      });
-      if (q.length > 3) {
-        const more = document.createElement('div');
-        more.className = "text-center text-zinc-500 py-3 text-sm";
-        more.textContent = `${q.length - 3} more in queue`;
-        list.appendChild(more);
-      }
-    }
+    setTimeout(() => {
+      if (!hasStarted && player) player.playVideo();
+    }, 800);
+  }
+}
 
-    function renderHistory(h) {
-      const list = document.getElementById('history-list');
-      const count = document.getElementById('history-count');
-      list.innerHTML = '';
-      count.textContent = `(${h.length})`;
-      const displayItems = h.slice(0, 3);
-      displayItems.forEach((song, i) => {
-        const div = document.createElement('div');
-        div.className = "flex flex-col gap-2 bg-zinc-950 p-4 rounded-2xl";
-        div.innerHTML = `
-          <div class="flex gap-4">
-            <img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-16 h-16 rounded-xl">
-            <div class="flex-1">
-              <div class="font-medium">${song.title || 'Unknown Banger'}</div>
-              <div class="text-xs text-zinc-400">${song.artist || ''}</div>
-              <div class="text-xs text-zinc-500">by ${song.requester}</div>
-            </div>
-          </div>
-          <button onclick="reQueue(${i});event.stopImmediatePropagation()" class="text-yellow-400 font-black text-xs px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded-lg self-start">RE-QUEUE</button>
-        `;
-        list.appendChild(div);
-      });
-      if (h.length > 3) {
-        const more = document.createElement('div');
-        more.className = "text-center text-zinc-500 py-3 text-sm";
-        more.textContent = `+${h.length - 3} more in history`;
-        list.appendChild(more);
-      }
-    }
+function startPlaying() {
+  document.getElementById('autoplay-overlay').style.opacity = '0';
+  setTimeout(() => document.getElementById('autoplay-overlay').style.display = 'none', 600);
+  hasStarted = true;
+  if (player && currentId) player.playVideo();
+}
 
-    function updateUI(state) {
-      renderNowPlaying(state.nowPlaying);
-      renderQueue(state.queue || []);
-      renderHistory(state.history || []);
-      if (state.nowPlaying) {
-        if (state.nowPlaying.id !== currentId) {
-          playSong(state.nowPlaying.id);
-        }
-      } else {
-        socket.emit('nextSong');
-      }
-    }
+// Keep ALL your existing renderNowPlaying, renderQueue, renderHistory, updateUI, addSong, reQueue, shareNowPlaying, shareQueuedSong, hideToast, hideDuplicateToast, and window.onload exactly as in your current file.
+// Only the top part (player setup + onPlayerStateChange + playSong) is replaced above.
 
-    async function addSong() {
-      const url = document.getElementById('url-input').value.trim();
-      let requester = document.getElementById('requester-input').value.trim() || "Skeleton Fan";
-      if (!url) return alert("Paste a YouTube link!");
-      socket.emit('addSong', { url, requester });
-      document.getElementById('url-input').value = '';
-      socket.once('state', (state) => {
-        if (state.queue && state.queue.length > 0) {
-          document.getElementById('toast-song-title').textContent = state.queue[state.queue.length-1].title;
-          document.getElementById('share-toast').classList.remove('hidden');
-        }
-      });
-    }
+window.onload = () => {
+  socket = io();
+  socket.on('state', updateUI);
+  socket.on('error', alert);
+  socket.on('duplicate', (data) => {
+    document.getElementById('dup-song-title').textContent = `"${data.title}"`;
+    document.getElementById('dup-message').textContent = data.position === "currently playing" ? "is currently playing!" : `is already queued at position #${data.position}`;
+    document.getElementById('duplicate-toast').classList.remove('hidden');
+    setTimeout(() => document.getElementById('duplicate-toast').classList.add('hidden'), 3500);
+  });
+};
 
-    function reQueue(i) { socket.emit('reQueue', i); }
-
-    function shareNowPlaying() {
-      const title = document.getElementById('now-title').textContent;
-      if (!title) return;
-      const text = `I'm listening to "${title}" in The Skeleton Jukebox right now! 🎧\n\nJoin: ${JUKEBOX_URL}`;
-      navigator.clipboard.writeText(text).then(() => alert("📄 Copied!"));
-    }
-
-    function shareQueuedSong() {
-      const title = document.getElementById('toast-song-title').textContent;
-      const text = `I just queued "${title}" in The Skeleton Jukebox! 🎧\n\nJoin: ${JUKEBOX_URL}`;
-      navigator.clipboard.writeText(text).then(() => { alert("📄 Copied!"); hideToast(); });
-    }
-
-    function hideToast() {
-      document.getElementById('share-toast').classList.add('hidden');
-    }
-
-    window.onload = () => {
-      socket = io();
-      socket.on('state', updateUI);
-      socket.on('error', alert);
-    };
-
-    window.addSong = addSong;
-    window.shareNowPlaying = shareNowPlaying;
-    window.shareQueuedSong = shareQueuedSong;
-    window.hideToast = hideToast;
-    window.startPlaying = startPlaying;
-    window.reQueue = reQueue;
-  </script>
+window.addSong = addSong;
+window.shareNowPlaying = shareNowPlaying;
+window.shareQueuedSong = shareQueuedSong;
+window.hideToast = hideToast;
+window.startPlaying = startPlaying;
+window.reQueue = reQueue;
+window.hideDuplicateToast = () => document.getElementById('duplicate-toast').classList.add('hidden');
+</script>
 </body>
 </html>
