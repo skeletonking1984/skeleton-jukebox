@@ -1,191 +1,251 @@
-const express = require('express');
-const { createServer } = require('http');
-const { Server } = require('socket.io');
-const fetch = require('node-fetch');
-const fs = require('fs');
-const path = require('path');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKELETON JUKEBOX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        body { background: #0a0a0a; }
+        .pixel-font { font-family: 'Press Start 2P', system-ui; }
+        .player-container { aspect-ratio: 16/9; position: relative; }
+    </style>
+</head>
+<body class="text-white min-h-screen">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div class="flex justify-between items-center mb-6 lg:mb-10">
+            <div class="flex items-center gap-3 lg:gap-4">
+                <div class="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-red-600 to-yellow-400 rounded-2xl flex items-center justify-center text-4xl sm:text-5xl">💀</div>
+                <div>
+                    <h1 class="pixel-font text-3xl sm:text-4xl lg:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-yellow-300">SKELETON JUKEBOX</h1>
+                    <p class="text-yellow-300/80 text-xs sm:text-sm tracking-widest">ANYONE CAN REQUEST • QUEUE PLAYS IN ORDER</p>
+                </div>
+            </div>
+        </div>
 
-const app = express();
-const httpServer = createServer(app);
-const io = new Server(httpServer, { cors: { origin: "*" } });
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+            <!-- Player -->
+            <div class="lg:col-span-8">
+                <div class="bg-zinc-950 border border-yellow-400/30 rounded-3xl overflow-hidden">
+                    <div class="player-container bg-black relative">
+                        <div id="player" class="w-full h-full"></div>
+                        <div id="autoplay-overlay" class="absolute inset-0 bg-black/90 flex items-center justify-center z-50 cursor-pointer">
+                            <div onclick="startPlaying()" class="text-center px-4">
+                                <div class="text-5xl mb-4">🎧</div>
+                                <div class="text-2xl sm:text-4xl font-black tracking-widest text-yellow-400">CLICK TO JOIN<br>THE PARTY</div>
+                            </div>
+                        </div>
+                    </div>
 
-const STATE_FILE = path.join(process.cwd(), 'jukebox-state.json');
+                    <!-- Now Playing -->
+                    <div id="now-playing" class="px-4 sm:px-8 py-4 sm:py-6 hidden">
+                        <div class="flex flex-col sm:flex-row gap-4 sm:items-center">
+                            <div id="now-thumbnail" class="w-20 h-20 sm:w-24 sm:h-24 bg-zinc-900 rounded-2xl ring-2 ring-yellow-400/50 flex-shrink-0 overflow-hidden"></div>
+                            <div class="flex-1 min-w-0">
+                                <div class="uppercase text-red-400 text-xs tracking-widest font-medium">NOW SCREAMING</div>
+                                <h2 id="now-title" class="text-xl sm:text-3xl font-bold truncate"></h2>
+                                <p id="now-artist" class="text-xs sm:text-sm text-zinc-400"></p>
+                                <p id="now-requester" class="text-zinc-400 text-sm"></p>
+                            </div>
+                            <button onclick="shareNowPlaying()" class="bg-yellow-400 hover:bg-yellow-300 text-black font-black px-6 py-3 rounded-2xl text-sm whitespace-nowrap mt-2 sm:mt-0">SHARE</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-app.get('/', (req, res) => res.sendFile('index.html', { root: process.cwd() }));
-app.use(express.static(process.cwd()));
+            <!-- Sidebar -->
+            <div class="lg:col-span-4 space-y-6">
+                <!-- Request -->
+                <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-5 sm:p-8">
+                    <h3 class="font-bold text-xl sm:text-2xl mb-4 sm:mb-6">REQUEST A SONG</h3>
+                    <input id="url-input" type="text" placeholder="https://youtu.be/..." class="w-full bg-black border border-zinc-700 rounded-2xl px-4 sm:px-6 py-4 sm:py-6 text-base sm:text-lg">
+                    <input id="requester-input" type="text" value="Skeleton Fan" class="mt-3 sm:mt-4 w-full bg-black border border-zinc-700 rounded-2xl px-4 sm:px-6 py-4 sm:py-6 text-base sm:text-lg">
+                    <button onclick="addSong()" class="mt-4 sm:mt-6 w-full bg-gradient-to-r from-yellow-400 to-red-500 py-4 sm:py-6 rounded-3xl text-lg sm:text-2xl font-black">THROW IT IN 🔥</button>
+                </div>
 
-// Fallback songs in case queue is empty
-const fallbackSongIds = [
-  "kXYiU_JcYtU", "hTwKbfloikeg", "XZuM4zFg-60", "Xa1YxczjZ0U", "H-iPavAXQuK",
-  "x6ytDsqkQY8", "JnRw8bXVbPI", "49FB9hhoO6c", "_Fr0QC-zE0g", "7Y8VPQcPHhY",
-  "1DoI5WTjd3w", "lzC0WHxrGs8", "bc0KhhjJP98", "y69gQtAdHKc", "jmhoOp2fluzg",
-  "U3PFcV04ego", "Dy4HA3vUv2c", "H1x4020E-Fg", "jSRpb0GnFgK", "H-RBJNqdnoM",
-  "HLUX0y4EptA", "HNBCVM4KbUM"
-];
+                <!-- Queue -->
+                <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-5 sm:p-8 flex flex-col">
+                    <h3 class="font-bold text-xl sm:text-2xl mb-4 sm:mb-6">UP NEXT <span id="queue-count">(0)</span></h3>
+                    <div id="queue-list" class="flex-1 overflow-auto space-y-3 max-h-60 sm:max-h-none"></div>
+                    <div id="empty-state" class="flex-1 flex items-center justify-center text-zinc-500 hidden">Queue empty</div>
+                </div>
 
-async function getVideoMetadata(videoId) {
-  const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) {
-    console.warn('No YOUTUBE_API_KEY set - using fallback metadata');
-    return { title: 'Unknown Banger', artist: 'Unknown', embeddable: true };
-  }
+                <!-- History -->
+                <div class="bg-zinc-900 border border-zinc-700 rounded-3xl p-5 sm:p-8 flex flex-col">
+                    <h3 class="font-bold text-xl sm:text-2xl mb-4 sm:mb-6">PREVIOUSLY PLAYED <span id="history-count">(0)</span></h3>
+                    <div id="history-list" class="flex-1 overflow-auto space-y-3 max-h-60 sm:max-h-none"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-  try {
-    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${videoId}&key=${apiKey}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`YouTube API HTTP ${res.status}`);
-    const data = await res.json();
+    <!-- Toasts -->
+    <div id="share-toast" class="hidden fixed bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 bg-zinc-900 border border-yellow-400 rounded-3xl px-6 py-5 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 z-[100] max-w-[90%] sm:max-w-md">
+        <div class="flex-1">
+            <div class="text-yellow-300 text-sm font-bold">YOU JUST QUEUED</div>
+            <div id="toast-song-title" class="font-bold text-base sm:text-lg"></div>
+        </div>
+        <button onclick="shareQueuedSong()" class="bg-gradient-to-r from-yellow-400 to-red-500 text-black font-black px-6 py-3 rounded-2xl text-sm whitespace-nowrap">BRAG ON X</button>
+        <button onclick="hideToast()" class="text-zinc-500">✕</button>
+    </div>
 
-    if (data.items?.length > 0) {
-      const snippet = data.items[0].snippet;
-      const status = data.items[0].status || {};
-      return {
-        title: snippet.title || 'Unknown Banger',
-        artist: snippet.channelTitle || 'Unknown Artist',
-        embeddable: status.embeddable !== false
-      };
-    }
-  } catch (e) {
-    console.error('YouTube API error for', videoId, ':', e.message);
-  }
-  return { title: 'Unknown Banger', artist: 'Unknown', embeddable: true };
-}
+    <div id="error-toast" class="hidden fixed bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 bg-red-600/90 border border-red-400 rounded-3xl px-6 py-5 shadow-2xl flex items-center gap-3 z-[100]">
+        <div class="text-2xl">❌</div>
+        <div id="error-text" class="font-bold">Song blocked by YouTube - auto-skipping...</div>
+    </div>
 
-async function getRandomSong() {
-  const id = fallbackSongIds[Math.floor(Math.random() * fallbackSongIds.length)];
-  const meta = await getVideoMetadata(id);
-  return {
-    id,
-    title: meta.title,
-    artist: meta.artist,
-    requester: "Random Skeleton Pick 👻",
-    embeddable: meta.embeddable
-  };
-}
+    <script>
+        let socket, player, currentId = null;
+        let playWatchdog = null;
+        const JUKEBOX_URL = "https://skeleton-jukebox.onrender.com";
+        let hasStarted = false;
 
-let nowPlaying;
-(async () => {
-  nowPlaying = await getRandomSong();
-})();
+        window.onYouTubeIframeAPIReady = () => {
+            player = new YT.Player('player', {
+                width: '100%', height: '100%',
+                playerVars: { autoplay: 1, controls: 1, modestbranding: 1 },
+                events: { onStateChange: onPlayerStateChange, onError: onPlayerError }
+            });
+        };
 
-let queue = [];
-let history = [];
-let lastAdvanceTime = 0;
+        function onPlayerStateChange(e) {
+            if (e.data === YT.PlayerState.PLAYING) {
+                if (playWatchdog) { clearTimeout(playWatchdog); playWatchdog = null; }
+            }
+            if (e.data === YT.PlayerState.ENDED) {
+                socket.emit('nextSong');
+            }
+        }
 
-if (fs.existsSync(STATE_FILE)) {
-  try {
-    const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-    if (data.nowPlaying) nowPlaying = data.nowPlaying;
-    if (data.queue) queue = data.queue;
-    if (data.history) history = data.history;
-  } catch (e) {
-    console.error('Failed to load state:', e);
-  }
-}
+        function onPlayerError(event) {
+            const blocked = [100, 101, 150, 5];
+            if (blocked.includes(event.data)) {
+                document.getElementById('error-text').textContent = 'Song blocked - auto-skipping...';
+                document.getElementById('error-toast').classList.remove('hidden');
+                setTimeout(() => {
+                    document.getElementById('error-toast').classList.add('hidden');
+                    socket.emit('nextSong');
+                }, 1800);
+            }
+        }
 
-function saveState() {
-  try {
-    fs.writeFileSync(STATE_FILE, JSON.stringify({ nowPlaying, queue, history }, null, 2));
-  } catch (e) {
-    console.error('Failed to save state:', e);
-  }
-}
+        function playSong(id) {
+            currentId = id;
+            if (player) {
+                player.loadVideoById(id);
+                if (playWatchdog) clearTimeout(playWatchdog);
+                playWatchdog = setTimeout(() => socket.emit('nextSong'), 8000);
+                setTimeout(() => { if (!hasStarted && player) player.playVideo(); }, 800);
+            }
+        }
 
-// ────────────────────── IMPROVED URL PARSER ──────────────────────
-function extractVideoId(url) {
-  if (!url) return null;
-  url = url.trim();
+        function startPlaying() {
+            const overlay = document.getElementById('autoplay-overlay');
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.style.display = 'none', 600);
+            hasStarted = true;
+            if (player && currentId) player.playVideo();
+        }
 
-  const patterns = [
-    /(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=))([a-zA-Z0-9_-]{11})/i,
-    /shorts\/([a-zA-Z0-9_-]{11})/i,
-    /music\.youtube\.com\/.*[?&]v=([a-zA-Z0-9_-]{11})/i,
-    /\/v\/([a-zA-Z0-9_-]{11})/i,
-    /[?&]v=([a-zA-Z0-9_-]{11})/i,              // catch stray ?v= or &v=
-    /youtu\.be\/([a-zA-Z0-9_-]{11})/i          // direct youtu.be short link
-  ];
+        function renderNowPlaying(song) {
+            const container = document.getElementById('now-playing');
+            if (!song) return container.classList.add('hidden');
+            container.classList.remove('hidden');
+            document.getElementById('now-title').textContent = song.title || 'Unknown Banger';
+            document.getElementById('now-artist').textContent = song.artist || '';
+            document.getElementById('now-requester').textContent = `Requested by ${song.requester}`;
+            document.getElementById('now-thumbnail').innerHTML = `<img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-full h-full object-cover">`;
+        }
 
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match && match[1]) {
-      console.log('Extracted video ID:', match[1], 'from:', url);
-      return match[1];
-    }
-  }
-  console.log('Failed to extract video ID from:', url);
-  return null;
-}
+        function renderQueue(q) {
+            const list = document.getElementById('queue-list');
+            const count = document.getElementById('queue-count');
+            const empty = document.getElementById('empty-state');
+            list.innerHTML = '';
+            count.textContent = `(${q.length})`;
+            if (q.length === 0) { empty.classList.remove('hidden'); return; }
+            empty.classList.add('hidden');
+            q.slice(0, 3).forEach(song => {
+                const div = document.createElement('div');
+                div.className = "flex gap-4 bg-zinc-950 p-5 rounded-2xl";
+                div.innerHTML = `<img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-16 h-16 rounded-xl"><div class="flex-1"><div class="font-medium">${song.title}</div><div class="text-xs text-zinc-400">${song.artist}</div><div class="text-xs text-zinc-500">by ${song.requester}</div></div>`;
+                list.appendChild(div);
+            });
+            if (q.length > 3) {
+                const more = document.createElement('div');
+                more.className = "text-center text-zinc-500 py-3 text-sm";
+                more.textContent = `+${q.length - 3} more in queue`;
+                list.appendChild(more);
+            }
+        }
 
-async function getVideoInfo(url) {
-  const id = extractVideoId(url);
-  if (!id) return { title: 'Unknown Banger', artist: 'Unknown', id: null, embeddable: false };
-  const meta = await getVideoMetadata(id);
-  return { title: meta.title, artist: meta.artist, id, embeddable: meta.embeddable };
-}
+        function renderHistory(h) {
+            const list = document.getElementById('history-list');
+            const count = document.getElementById('history-count');
+            list.innerHTML = '';
+            count.textContent = `(${h.length})`;
+            h.slice(0, 3).forEach((song, i) => {
+                const div = document.createElement('div');
+                div.className = "flex flex-col gap-2 bg-zinc-950 p-4 rounded-2xl";
+                div.innerHTML = `<div class="flex gap-4"><img src="https://i.ytimg.com/vi/${song.id}/hqdefault.jpg" class="w-16 h-16 rounded-xl"><div class="flex-1"><div class="font-medium">${song.title}</div><div class="text-xs text-zinc-400">${song.artist}</div><div class="text-xs text-zinc-500">by ${song.requester}</div></div></div><button onclick="reQueue(${i});event.stopImmediatePropagation()" class="text-yellow-400 font-black text-xs px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded-lg self-start">↻ RE-QUEUE</button>`;
+                list.appendChild(div);
+            });
+            if (h.length > 3) {
+                const more = document.createElement('div');
+                more.className = "text-center text-zinc-500 py-3 text-sm";
+                more.textContent = `+${h.length - 3} more in history`;
+                list.appendChild(more);
+            }
+        }
 
-// ────────────────────── SOCKET LOGIC ──────────────────────
-io.on('connection', (socket) => {
-  socket.emit('state', { nowPlaying, queue, history });
+        function updateUI(state) {
+            renderNowPlaying(state.nowPlaying);
+            renderQueue(state.queue || []);
+            renderHistory(state.history || []);
+            if (state.nowPlaying && state.nowPlaying.id !== currentId) playSong(state.nowPlaying.id);
+        }
 
-  socket.on('addSong', async ({ url, requester }) => {
-    const info = await getVideoInfo(url);
-    if (!info.id) {
-      return socket.emit('error', 'Invalid YouTube URL – make sure it contains a video ID');
-    }
-    if (!info.embeddable) {
-      return socket.emit('error', '❌ This video cannot be embedded (copyright / rights holder restriction)');
-    }
+        async function addSong() {
+            const url = document.getElementById('url-input').value.trim();
+            const requester = document.getElementById('requester-input').value.trim() || "Skeleton Fan";
+            if (!url) return alert("Paste a YouTube link!");
+            socket.emit('addSong', { url, requester });
+            document.getElementById('url-input').value = '';
+            socket.once('state', state => {
+                if (state.queue?.length) {
+                    document.getElementById('toast-song-title').textContent = state.queue[state.queue.length-1].title;
+                    document.getElementById('share-toast').classList.remove('hidden');
+                }
+            });
+        }
 
-    const wasEmpty = queue.length === 0;
-    queue.push({
-      id: info.id,
-      title: info.title,
-      artist: info.artist,
-      requester: requester || "Skeleton Fan"
-    });
+        function reQueue(i) { socket.emit('reQueue', i); }
+        function shareNowPlaying() {
+            const title = document.getElementById('now-title').textContent;
+            if (!title) return;
+            navigator.clipboard.writeText(`I'm listening to "${title}" in The Skeleton Jukebox right now! 🎧\n\nJoin: ${JUKEBOX_URL}`).then(() => alert("📄 Copied!"));
+        }
+        function shareQueuedSong() {
+            const title = document.getElementById('toast-song-title').textContent;
+            navigator.clipboard.writeText(`I just queued "${title}" in The Skeleton Jukebox! 🎧\n\nJoin: ${JUKEBOX_URL}`).then(() => { alert("📄 Copied!"); hideToast(); });
+        }
+        function hideToast() { document.getElementById('share-toast').classList.add('hidden'); }
 
-    // If queue was empty and current song is random → replace it
-    if (wasEmpty && nowPlaying?.requester?.includes("Random Skeleton Pick")) {
-      if (nowPlaying) {
-        history.unshift(nowPlaying);
-        if (history.length > 12) history.pop();
-      }
-      nowPlaying = queue.shift();
-    }
+        window.onload = () => {
+            socket = io();
+            socket.on('state', updateUI);
+            socket.on('error', alert);
+        };
 
-    saveState();
-    io.emit('state', { nowPlaying, queue, history });
-  });
-
-  socket.on('nextSong', async () => {
-    const now = Date.now();
-    if (now - lastAdvanceTime < 1000) return; // rate limit
-
-    console.log('Advancing to next song');
-
-    if (nowPlaying) {
-      history.unshift(nowPlaying);
-      if (history.length > 12) history.pop();
-    }
-
-    nowPlaying = queue.length > 0 ? queue.shift() : await getRandomSong();
-    if (!nowPlaying) nowPlaying = await getRandomSong();
-
-    lastAdvanceTime = now;
-    saveState();
-    io.emit('state', { nowPlaying, queue, history });
-  });
-
-  socket.on('reQueue', (index) => {
-    if (index >= 0 && index < history.length) {
-      queue.push(history[index]);
-      saveState();
-      io.emit('state', { nowPlaying, queue, history });
-    }
-  });
-});
-
-const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
-  console.log(`🎧 Skeleton Jukebox running on port ${PORT}`);
-});
+        window.addSong = addSong;
+        window.shareNowPlaying = shareNowPlaying;
+        window.shareQueuedSong = shareQueuedSong;
+        window.hideToast = hideToast;
+        window.startPlaying = startPlaying;
+        window.reQueue = reQueue;
+    </script>
+</body>
+</html>
